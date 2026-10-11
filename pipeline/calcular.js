@@ -64,6 +64,7 @@ const cand = {};
 for (const est of CRIT.ESTRATEGIAS) cand[est.id] = Object.keys(VAL).filter((t) => est.f(EV[t], VAL[t])).sort();
 const semana = { fecha: f, sp500: estado.sp500 || null, precios, cand };
 const j = seg.semanas.findIndex((s) => s.fecha === f);
+const repetida = j >= 0;   // la semana ya se había procesado (actualización repetida a mano): no se vuelve a avisar
 if (j >= 0) seg.semanas[j] = semana; else seg.semanas.push(semana);
 seg.semanas.sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
 if (seg.semanas.length > 156) seg.semanas = seg.semanas.slice(-156);
@@ -120,8 +121,9 @@ if (salidaAvisos) {
     L.push('');
   }
   L.push(`[Abrir el simulador](https://bigthor12-7m.github.io/simulador-sp500/#/seguimiento) · las empresas que sigues y el umbral se cambian en pipeline/avisos.json.`);
-  if (hay || !prev) fs.writeFileSync(salidaAvisos, L.join('\n'));
-  console.log(hay || !prev ? 'Avisos de la semana preparados' : 'Sin avisos esta semana');
+  const avisar = (hay || !prev) && (!repetida || process.env.FORZAR_AVISOS);
+  if (avisar) fs.writeFileSync(salidaAvisos, L.join('\n'));
+  console.log(avisar ? 'Avisos de la semana preparados' : repetida ? 'Semana ya avisada: sin aviso nuevo' : 'Sin avisos esta semana');
 }
 
 // resumen en el estado

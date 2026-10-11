@@ -909,7 +909,7 @@ def main():
     print(f"Mercado del {V} · {len(emp)} componentes · {nval} valoradas · rf {rf:.4f}")
 
 
-SPLITS = [2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 30, 40, 50]
+SPLITS = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 100, 200]
 
 
 def historia_sec(br, emp, lista, sal):
@@ -922,28 +922,37 @@ def historia_sec(br, emp, lista, sal):
         except Exception: return {}
     h = json.load(gzip.open(f, "rt", encoding="utf-8"))
     años = [str(a) for a in h["años"]]
-    por_cik = {int(c["cik"]): c["ticker"] for c in lista["componentes"] if c.get("cik")}
+    por_cik = {}   # un CIK puede tener varias clases de acciones (GOOGL y GOOG, FOXA y FOX…)
+    for c in lista["componentes"]:
+        if c.get("cik"): por_cik.setdefault(int(c["cik"]), []).append(c["ticker"])
     out = {}
     for cik, d in h["empresas"].items():
-        t = por_cik.get(int(cik))
-        if not t: continue
+        ts = por_cik.get(int(cik))
+        if not ts: continue
+        t = ts[0]
         serie = lambda k, esc=1e6: [(d.get(k, {}).get(a) / esc if d.get(k, {}).get(a) is not None else None) for a in años]
         bpa, dpa, ni = serie("bpa", 1), serie("dpa", 1), serie("beneficio")
         # ajuste por splits: las acciones implícitas (beneficio / BPA) saltan un múltiplo entero de un año a otro
-        f_ = 1.0
-        for i in range(len(años) - 2, -1, -1):
-            a1 = ni[i + 1] / bpa[i + 1] if ni[i + 1] and bpa[i + 1] and ni[i + 1] * bpa[i + 1] > 0 else None
-            a0 = ni[i] / bpa[i] if ni[i] and bpa[i] and ni[i] * bpa[i] > 0 else None
-            if a1 and a0:
-                r = a1 / a0
-                k = min(SPLITS, key=lambda s_: abs(r / s_ - 1)) if r >= 1.8 else None
-                if k and abs(r / k - 1) < 0.25: f_ *= k
+        # (con las cifras originales de cada año, antes de ajustarlas, y frente al año posterior más cercano con dato)
+        acc = [ni[i] / bpa[i] if ni[i] and bpa[i] and ni[i] * bpa[i] > 0 else None for i in range(len(años))]
+        f_, ref = 1.0, None
+        for i in range(len(años) - 1, -1, -1):
+            if acc[i] and ref:
+                r = ref / acc[i]
+                if r >= 1.8:      # split: después hay muchas más acciones
+                    k = min(SPLITS, key=lambda s_: abs(r / s_ - 1))
+                    if abs(r / k - 1) < 0.25: f_ *= k
+                elif r <= 1 / 1.8:  # contrasplit: después hay muchas menos acciones
+                    k = min(SPLITS, key=lambda s_: abs(1 / (r * s_) - 1))
+                    if abs(1 / (r * k) - 1) < 0.25: f_ /= k
             if bpa[i] is not None: bpa[i] /= f_
             if dpa[i] is not None: dpa[i] /= f_
+            if acc[i]: ref = acc[i]
         dv = serie("dividendos")
         out[t] = {"años": [int(a) for a in años], "ventas": serie("ventas"), "beneficio": ni, "ebit": serie("ebit"), "bpa": bpa,
                   "dpa": dpa, "dividendos": dv, "patrimonio": serie("patrimonio"), "cfo": serie("cfo")}
         out[t] = redondear(out[t], 4)
+        for t2 in ts[1:]: out[t2] = out[t]
     # las clases secundarias comparten historia con la principal
     for e in emp:
         if e.get("principal") and e["principal"] in out: out[e["ticker"]] = out[e["principal"]]
