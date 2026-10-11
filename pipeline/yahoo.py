@@ -12,9 +12,11 @@ MODULOS = ("price,summaryDetail,defaultKeyStatistics,financialData,earningsTrend
 CUENTA_RESULTADOS = ["TotalRevenue", "OperatingIncome", "EBIT", "EBITDA", "NormalizedEBITDA", "ReconciledDepreciation",
                      "InterestExpense", "InterestIncome", "PretaxIncome", "TaxProvision", "TaxRateForCalcs",
                      "NetIncomeCommonStockholders", "DilutedEPS", "DilutedAverageShares", "TotalUnusualItems",
-                     "ResearchAndDevelopment", "GrossProfit"]
+                     "ResearchAndDevelopment", "GrossProfit", "AmortizationOfIntangiblesIncomeStatement",
+                     "DepreciationAndAmortizationInIncomeStatement", "DepreciationIncomeStatement", "SpecialIncomeCharges"]
 FLUJOS = ["OperatingCashFlow", "CapitalExpenditure", "FreeCashFlow", "StockBasedCompensation", "DepreciationAndAmortization",
-          "DepreciationAmortizationDepletion", "ChangeInWorkingCapital", "CashDividendsPaid", "RepurchaseOfCapitalStock"]
+          "DepreciationAmortizationDepletion", "ChangeInWorkingCapital", "CashDividendsPaid", "RepurchaseOfCapitalStock",
+          "Depreciation", "AmortizationCashFlow", "AmortizationOfIntangibles"]
 BALANCE = ["TotalAssets", "CurrentAssets", "CurrentLiabilities", "CashAndCashEquivalents", "CashCashEquivalentsAndShortTermInvestments",
            "OtherShortTermInvestments", "Receivables", "Inventory", "AccountsPayable", "Payables", "PayablesAndAccruedExpenses",
            "CurrentDebt", "CurrentDebtAndCapitalLeaseObligation", "CurrentCapitalLeaseObligation", "LongTermDebt",
