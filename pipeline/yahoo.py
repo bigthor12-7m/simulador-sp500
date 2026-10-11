@@ -16,7 +16,7 @@ CUENTA_RESULTADOS = ["TotalRevenue", "OperatingIncome", "EBIT", "EBITDA", "Norma
                      "DepreciationAndAmortizationInIncomeStatement", "DepreciationIncomeStatement", "SpecialIncomeCharges"]
 FLUJOS = ["OperatingCashFlow", "CapitalExpenditure", "FreeCashFlow", "StockBasedCompensation", "DepreciationAndAmortization",
           "DepreciationAmortizationDepletion", "ChangeInWorkingCapital", "CashDividendsPaid", "RepurchaseOfCapitalStock",
-          "Depreciation", "AmortizationCashFlow", "AmortizationOfIntangibles"]
+          "Depreciation", "AmortizationCashFlow", "AmortizationOfIntangibles", "GainLossOnSaleOfPPE", "GainLossOnInvestmentSecurities"]
 BALANCE = ["TotalAssets", "CurrentAssets", "CurrentLiabilities", "CashAndCashEquivalents", "CashCashEquivalentsAndShortTermInvestments",
            "OtherShortTermInvestments", "Receivables", "Inventory", "AccountsPayable", "Payables", "PayablesAndAccruedExpenses",
            "CurrentDebt", "CurrentDebtAndCapitalLeaseObligation", "CurrentCapitalLeaseObligation", "LongTermDebt",
