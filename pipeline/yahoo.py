@@ -141,7 +141,7 @@ def descargar_todo(tickers, hilos=3, extra=()):
                 reg["ts"] = series(cli, t)
             except Exception as e:
                 with lock: fallos.setdefault(t, []).append(f"series: {str(e)[:160]}")
-        if t != "^TNX":
+        if t not in ("^TNX", "EURUSD=X"):
             try:
                 reg["px"] = precios(cli, t)
             except Exception as e:  # el histórico de cotizaciones no es imprescindible

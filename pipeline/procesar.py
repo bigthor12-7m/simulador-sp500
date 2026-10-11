@@ -217,6 +217,11 @@ def datos_empresa(c, y, V, avisos_globales):
     gr["deuda_patrimonio"] = deuda / patrimonio if patrimonio and patrimonio > 0 else None
     e["graham"] = gr
     e["piotroski"] = piotroski(S)
+    e["consenso"] = consenso_de(qs)
+    dr = raw(sd.get("dividendRate")) or raw(sd.get("trailingAnnualDividendRate")) or 0.0
+    exd = sd.get("exDividendDate")
+    e["dividendo"] = {"dpa": dr, "rent": dr / px if dr and px else 0.0, "payout": raw(sd.get("payoutRatio")),
+                      "ex": exd.get("fmt") if isinstance(exd, dict) else None}
 
     if e["motivo"]:
         return e, None
@@ -274,7 +279,7 @@ def datos_empresa(c, y, V, avisos_globales):
     elif C.n("+1y", "rev") < R["analistas_min"]:
         e["avisos"].append("pocos_analistas")
     e["_anc"] = anc
-    e["consenso"] = {"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    e.setdefault("consenso", {}).update({"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None})
     return e, C
 
 
@@ -326,6 +331,62 @@ def piotroski(S):
         "rotacion": cmp(div(rev.get(t1), ta.get(t1)), div(rev.get(t0), ta.get(t0)), lambda a, b: a > b),
     }
     return {"f": sum(1 for v in d.values() if v), "n": sum(1 for v in d.values() if v is not None), "d": d, "ejercicio": t1}
+
+
+def consenso_de(qs):
+    """Revisiones del consenso de BPA (tendencia a 7, 30 y 90 días de Yahoo), analistas que suben y bajan, el último
+    trimestre publicado frente a lo esperado y la previsión del próximo."""
+    tr = {x.get("period"): x for x in ((qs.get("earningsTrend") or {}).get("trend") or [])}
+
+    def tend(p, k):
+        return raw(((tr.get(p) or {}).get("epsTrend") or {}).get(k))
+
+    def rev(p, dias):
+        a, b = tend(p, "current"), tend(p, f"{dias}daysAgo")
+        return (a - b) / abs(b) if a is not None and b else None
+
+    def n(p, k):
+        return raw(((tr.get(p) or {}).get("epsRevisions") or {}).get(k))
+    out = {"bpa_0y": tend("0y", "current"), "bpa_1y": tend("+1y", "current"), "fin_0y": (tr.get("0y") or {}).get("endDate"),
+           "rev7": rev("0y", 7), "rev30": rev("0y", 30), "rev90": rev("0y", 90), "rev30_1y": rev("+1y", 30), "rev90_1y": rev("+1y", 90),
+           "suben30": n("0y", "upLast30days"), "bajan30": n("0y", "downLast30days"),
+           "tendencia_0y": [tend("0y", k) for k in ("90daysAgo", "60daysAgo", "30daysAgo", "7daysAgo", "current")],
+           "tendencia_1y": [tend("+1y", k) for k in ("90daysAgo", "60daysAgo", "30daysAgo", "7daysAgo", "current")]}
+    cal = (qs.get("calendarEvents") or {}).get("earnings") or {}
+    out.update({"prox_bpa": raw(cal.get("earningsAverage")), "prox_bpa_bajo": raw(cal.get("earningsLow")), "prox_bpa_alto": raw(cal.get("earningsHigh")),
+                "prox_ventas": raw(cal.get("revenueAverage")), "fecha_estimada": bool(cal.get("isEarningsDateEstimate"))})
+    hist = [h for h in ((qs.get("earningsHistory") or {}).get("history") or []) if raw(h.get("epsActual")) is not None]
+    hist.sort(key=lambda h: raw(h.get("quarter")) or 0)
+    if hist:
+        u = hist[-1]
+        out.update({"ult_trimestre": (u.get("quarter") or {}).get("fmt"), "ult_bpa": raw(u.get("epsActual")),
+                    "ult_esperado": raw(u.get("epsEstimate")), "ult_sorpresa": raw(u.get("surprisePercent"))})
+        out["sorpresas"] = [[(h.get("quarter") or {}).get("fmt"), raw(h.get("epsActual")), raw(h.get("epsEstimate"))] for h in hist[-4:]]
+    return out
+
+
+def dividendo10(h):
+    """Crecimiento anual compuesto del dividendo por acción (SEC, ajustado por splits), años seguidos subiéndolo y años
+    seguidos pagándolo, contando desde el último ejercicio con dato."""
+    dpa, tot, años = h.get("dpa") or [], h.get("dividendos") or [], h.get("años") or []
+    dp = [(a, x) for a, x in zip(años, dpa) if x is not None and x > 0]
+    out = {}
+    if len(dp) >= 3:
+        (a0, x0), (a1, x1) = dp[0], dp[-1]
+        if a1 > a0: out.update({"cagr": (x1 / x0) ** (1 / (a1 - a0)) - 1, "cagr_desde": a0, "cagr_hasta": a1})
+    idx = [i for i, x in enumerate(dpa) if x is not None]
+    sube = 0
+    if idx:
+        i = idx[-1]
+        while i > 0 and dpa[i] is not None and dpa[i - 1] is not None and dpa[i - 1] > 0 and dpa[i] > dpa[i - 1] * 1.001:
+            sube += 1; i -= 1
+    paga = 0
+    ult = max([i for i in range(len(años)) if (dpa[i] if i < len(dpa) else None) is not None or (tot[i] if i < len(tot) else None) is not None] or [-1])
+    for i in range(ult, -1, -1):
+        if ((dpa[i] if i < len(dpa) else 0) or 0) > 0 or ((tot[i] if i < len(tot) else 0) or 0) > 0: paga += 1
+        else: break
+    out.update({"sube": sube, "paga": paga})
+    return out
 
 
 def modelo_de(sub):
@@ -418,7 +479,7 @@ def datos_ri(e, S, qs, V):
     if (V - D(f_bal)).days > 200: e["avisos"].append("balance_antiguo")
     e["ri"] = {"bv0": bv0, "bpa1": anc["bpa1"], "bpa2": anc["bpa2"], "payout0": payout0, "bpa_ttm": bpa_ttm,
                "roe_ttm": ni / cse if ni is not None else None, "tbv": (S.v("TangibleBookValue", "bal") or 0) / acc}
-    e["consenso"] = {"n": C.n("+1y", "eps"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    e.setdefault("consenso", {}).update({"n": C.n("+1y", "eps"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None})
     e["_ri"] = True
     return e, C
 
@@ -465,7 +526,7 @@ def datos_reit(e, S, qs, V):
     affo_ps = R["reit_affo_sobre_ffo"] * ffo_ps
     e["reit"] = {"dps0": dps0, "ffo_ps": ffo_ps, "affo0": affo_ps, "ffo": ffo, "g1": [l[0], b[0], h[0]], "g2": [l[1], b[1], h[1]],
                  "cobertura": ffo_ps / dps0 if dps0 else None, "ebitda": e.get("ebitda_ttm"), "plusvalias": gan}
-    e["consenso"] = {"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    e.setdefault("consenso", {}).update({"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None})
     e["_reit"] = True
     return e, C
 
@@ -868,6 +929,7 @@ def main():
     for e in emp:
         h = historia.get(e["ticker"])
         if h and e.get("graham") is not None: e["graham"].update(graham10(h))
+        if h and e.get("dividendo") is not None: e["dividendo"].update(dividendo10(h))
 
     # ---------------- cotizaciones semanales de 5 años (un fichero por empresa, para cargarlo solo al abrir su ficha)
     dp = sal / "precios"; dp.mkdir(exist_ok=True)
@@ -875,6 +937,7 @@ def main():
         px = y.get("px")
         if px: json.dump([[f, round(c, 2)] for f, c in px], open(dp / (t.replace("^", "_") + ".json"), "w"), separators=(",", ":"))
     sp500 = raw((((Y.get("^GSPC") or {}).get("qs") or {}).get("price") or {}).get("regularMarketPrice"))
+    eurusd = raw((((Y.get("EURUSD=X") or {}).get("qs") or {}).get("price") or {}).get("regularMarketPrice"))
 
     # ---------------- valoración revisada de las 7 Magníficas (Simulador 7M)
     revisadas_7m(br, emp)
@@ -903,7 +966,7 @@ def main():
               "fuente_lista": lista.get("fuente"), "componentes": len(emp), "valoradas": nval,
               "no_valoradas": {m: n for m, n in _contar(e.get("motivo") for e in emp if not e.get("valorada")).items()},
               "sin_consenso": [e["ticker"] for e in emp if "sin_consenso" in (e.get("avisos") or [])],
-              "fallos_descarga": diag.get("fallos", {}), "avisos": avisos, "sp500": sp500,
+              "fallos_descarga": diag.get("fallos", {}), "avisos": avisos, "sp500": sp500, "eurusd": eurusd,
               "historia_sec": bool(historia), "revisadas_7m": sorted(e["ticker"] for e in emp if e.get("revisada"))}
     json.dump(estado, open(sal / "estado.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"Mercado del {V} · {len(emp)} componentes · {nval} valoradas · rf {rf:.4f}")

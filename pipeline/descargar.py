@@ -23,7 +23,7 @@ def main():
     if a.max: lista = lista[: a.max]
     tickers = [x["ticker"] for x in lista]
     print(f"{len(tickers)} componentes ({fuente})")
-    datos, fallos, cliente = yahoo.descargar_todo(tickers, hilos=a.hilos, extra=("^TNX", "^GSPC"))
+    datos, fallos, cliente = yahoo.descargar_todo(tickers, hilos=a.hilos, extra=("^TNX", "^GSPC", "EURUSD=X"))
 
     # historia de 10 años de la SEC (no imprescindible: si falla, la app conserva la de la semana anterior)
     sec_info = None

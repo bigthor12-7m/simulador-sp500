@@ -1,19 +1,20 @@
 {
-  "_nota": "Empresas que sigues (tickers) y umbral de variación semanal (0,10 = 10 %) a partir del cual se destacan en el aviso del lunes. Estrategias cuyas entradas y salidas se avisan: margen25, graham, greenblatt, piotroski.",
-  "seguir": [
-    "AAPL",
-    "MSFT",
-    "NVDA",
-    "GOOGL",
-    "AMZN",
-    "META",
-    "TSLA"
-  ],
-  "umbral": 0.1,
-  "estrategias": [
-    "margen25",
-    "graham",
-    "greenblatt",
-    "piotroski"
-  ]
+ "_nota": "Avisos por correo (issue de GitHub). seguir: empresas cuyo resumen llega cada lunes; umbral: variación semanal (0,10 = 10 %) a partir de la cual se destacan; estrategias: entradas y salidas que se avisan (margen25, graham, greenblatt, piotroski); alertas: avisos propios por empresa que se comprueban cada tarde: compra (avisa si la cotización baja de ese precio), venta (si lo supera) y margen (si el margen de seguridad sobre el valor central supera ese porcentaje, 0,20 = 20 %). La página Seguimiento de la app copia este fichero con tu lista y tus alertas.",
+ "seguir": [
+  "AAPL",
+  "MSFT",
+  "NVDA",
+  "GOOGL",
+  "AMZN",
+  "META",
+  "TSLA"
+ ],
+ "umbral": 0.1,
+ "estrategias": [
+  "margen25",
+  "graham",
+  "greenblatt",
+  "piotroski"
+ ],
+ "alertas": []
 }

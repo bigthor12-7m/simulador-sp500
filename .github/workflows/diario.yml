@@ -1,0 +1,67 @@
+name: Actualización diaria
+
+# De lunes a viernes a las 21:45 UTC (23:45 en Madrid en verano, 22:45 en invierno), después del cierre de Wall Street:
+# cotizaciones del día, recálculo de los valores y comprobación de las alertas propias (pipeline/avisos.json).
+# La actualización completa (estados financieros, consenso, historia de la SEC, seguimiento) sigue siendo la de los lunes.
+on:
+  schedule:
+    - cron: "45 21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  diario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Instalar dependencias
+        run: pip install -r pipeline/requirements.txt
+      - name: Cotizaciones del día
+        run: python pipeline/diario.py --datos app/datos
+      - name: Recalcular los valores y comprobar las alertas
+        env:
+          AVISOS_MD: ${{ runner.temp }}/alertas_dia.md
+          PROPIETARIO: ${{ github.repository_owner }}
+        run: node pipeline/calcular.js app/datos --diario
+      - name: Guardar los datos nuevos en el repositorio
+        run: |
+          git config user.name "actualizador-diario"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/datos
+          if git diff --cached --quiet; then echo "Sin cambios"; else git commit -q -m "Cotizaciones del $(date -u +%F)" && git pull -q --rebase && git push; fi
+      - name: Alertas por correo (issue de GitHub asignada al propietario)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f="${{ runner.temp }}/alertas_dia.md"
+          if [ -s "$f" ]; then
+            gh issue create --title "Alertas del $(date -u +%d/%m/%Y)" --body-file "$f" --assignee "${{ github.repository_owner }}" \
+              || gh issue create --title "Alertas del $(date -u +%d/%m/%Y)" --body-file "$f" || echo "No se pudo crear el aviso"
+          else
+            echo "Ninguna alerta nueva hoy"
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+      - id: despliegue
+        uses: actions/deploy-pages@v4
