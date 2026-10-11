@@ -23,7 +23,7 @@
  "fallos_descarga": {},
  "avisos": [],
  "sp500": 7811.54,
- "eurusd": null,
+ "eurusd": 1.1205738,
  "historia_sec": true,
  "revisadas_7m": [
   "AAPL",
@@ -39,5 +39,7 @@
   "por_debajo_central": 230,
   "potencial_mediano": -0.0267
  },
- "alertas_activas": []
+ "alertas_activas": [],
+ "actualizado_diario": "2026-10-11T19:54+00:00",
+ "cotizaciones_diarias": 503
 }
