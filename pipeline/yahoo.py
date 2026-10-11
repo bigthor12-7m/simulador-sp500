@@ -31,7 +31,9 @@ VALORACION = ["trailingEnterprisesValueEBITDARatio", "trailingEnterpriseValue", 
 
 
 ANUAL = ["TotalRevenue", "OperatingIncome", "NetIncomeCommonStockholders", "DilutedEPS", "CashDividendsPaid", "FreeCashFlow",
-         "CapitalExpenditure", "StockholdersEquity", "TotalDebt", "OrdinarySharesNumber"]
+         "CapitalExpenditure", "StockholdersEquity", "TotalDebt", "OrdinarySharesNumber",
+         # para la puntuación F de Piotroski
+         "TotalAssets", "OperatingCashFlow", "CurrentAssets", "CurrentLiabilities", "GrossProfit", "LongTermDebt", "DilutedAverageShares"]
 
 
 def tipos_series(tam=40):
@@ -109,6 +111,19 @@ def series(cli, t, desde=1514764800):
     return out
 
 
+def precios(cli, t, rango="5y"):
+    """Cierres semanales (ajustados por splits) de los últimos años: [[fecha, cierre], ...]."""
+    import datetime as dt
+    j = cli.get(f"https://query2.finance.yahoo.com/v8/finance/chart/{t}", {"range": rango, "interval": "1wk", "includeAdjustedClose": "false"})
+    r = j["chart"]["result"][0]
+    ts, cs = r.get("timestamp") or [], (r.get("indicators", {}).get("quote") or [{}])[0].get("close") or []
+    out = []
+    for x, c in zip(ts, cs):
+        if c is not None:
+            out.append([dt.datetime.fromtimestamp(x, dt.timezone.utc).date().isoformat(), round(c, 4)])
+    return out
+
+
 def descargar_todo(tickers, hilos=3, extra=()):
     """Descarga quoteSummary y series de cada ticker. Devuelve (datos, fallos)."""
     cli = Cliente()
@@ -126,6 +141,11 @@ def descargar_todo(tickers, hilos=3, extra=()):
                 reg["ts"] = series(cli, t)
             except Exception as e:
                 with lock: fallos.setdefault(t, []).append(f"series: {str(e)[:160]}")
+        if t != "^TNX":
+            try:
+                reg["px"] = precios(cli, t)
+            except Exception as e:  # el histórico de cotizaciones no es imprescindible
+                reg["px_error"] = str(e)[:160]
         time.sleep(0.25 + random.random() * 0.25)
         with lock: datos[t] = reg
 
