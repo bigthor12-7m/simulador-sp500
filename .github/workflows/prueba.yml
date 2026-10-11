@@ -1,0 +1,17 @@
+name: Prueba de series
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r pipeline/requirements.txt
+      - run: mkdir -p /tmp/p && python pipeline/prueba_series.py /tmp/p/prueba.json
+      - run: |
+          cd /tmp/p && git init -q -b prueba && git config user.name a && git config user.email a@b.c
+          git add -A && git commit -qm prueba && git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" prueba

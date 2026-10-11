@@ -18,33 +18,135 @@
     "crecimiento_anio10": 0.035,
     "peso_reversion_margen": 0.3,
     "margen10_pesimista_rel": -0.15,
-    "margen10_optimista_rel": 0.10,
+    "margen10_optimista_rel": 0.1,
     "margen10_dif_min": 0.01,
     "capex10_sobre_amortizacion": 1.25,
-    "impuesto_min": 0.10,
-    "impuesto_max": 0.30,
+    "impuesto_min": 0.1,
+    "impuesto_max": 0.3,
     "impuesto_defecto": 0.21,
-    "nof_min": -0.30,
-    "nof_max": 0.50,
-    "beta_min": 0.30,
-    "beta_max": 2.50,
+    "nof_min": -0.3,
+    "nof_max": 0.5,
+    "beta_min": 0.3,
+    "beta_max": 2.5,
     "analistas_min": 3,
     "comparables_max": 10,
     "comparables_min": 3,
-    "per_max": 200,
+    "per_max": 60,
     "sin_consenso_crec_min": -0.05,
     "sin_consenso_crec_max": 0.15,
     "sin_consenso_dif_crec": 0.04,
-    "sin_consenso_dif_margen_rel": 0.10
+    "sin_consenso_dif_margen_rel": 0.1,
+    "ev_ebitda_max": 40,
+    "margen10_banda_rel": 0.3,
+    "beta_relevada_min": 0.4,
+    "beta_relevada_max": 3.0,
+    "beta_final_min": 0.6
   },
   "rating_sintetico": {
     "_fuente": "Rating sintético por cobertura de intereses (EBIT / gastos financieros) para grandes empresas no financieras, con diferenciales de referencia aproximados de la tabla de A. Damodaran. Editable.",
     "tramos": [
-      [8.5, "AAA", 0.0059], [6.5, "AA", 0.0078], [5.5, "A+", 0.0098], [4.25, "A", 0.0108], [3.0, "A-", 0.0122],
-      [2.5, "BBB", 0.0156], [2.25, "BB+", 0.0200], [2.0, "BB", 0.0240], [1.75, "B+", 0.0292], [1.5, "B", 0.0351],
-      [1.25, "B-", 0.0429], [0.8, "CCC", 0.0600], [0.65, "CC", 0.0800], [0.2, "C", 0.1100], [-1e9, "D", 0.1500]
+      [
+        8.5,
+        "AAA",
+        0.0059
+      ],
+      [
+        6.5,
+        "AA",
+        0.0078
+      ],
+      [
+        5.5,
+        "A+",
+        0.0098
+      ],
+      [
+        4.25,
+        "A",
+        0.0108
+      ],
+      [
+        3.0,
+        "A-",
+        0.0122
+      ],
+      [
+        2.5,
+        "BBB",
+        0.0156
+      ],
+      [
+        2.25,
+        "BB+",
+        0.02
+      ],
+      [
+        2.0,
+        "BB",
+        0.024
+      ],
+      [
+        1.75,
+        "B+",
+        0.0292
+      ],
+      [
+        1.5,
+        "B",
+        0.0351
+      ],
+      [
+        1.25,
+        "B-",
+        0.0429
+      ],
+      [
+        0.8,
+        "CCC",
+        0.06
+      ],
+      [
+        0.65,
+        "CC",
+        0.08
+      ],
+      [
+        0.2,
+        "C",
+        0.11
+      ],
+      [
+        -1000000000.0,
+        "D",
+        0.15
+      ]
     ],
-    "por_deuda_ebitda": [[1.0, "AA"], [2.0, "A"], [3.0, "BBB"], [4.0, "BB"], [5.0, "B"], [1e9, "CCC"]]
+    "por_deuda_ebitda": [
+      [
+        1.0,
+        "AA"
+      ],
+      [
+        2.0,
+        "A"
+      ],
+      [
+        3.0,
+        "BBB"
+      ],
+      [
+        4.0,
+        "BB"
+      ],
+      [
+        5.0,
+        "B"
+      ],
+      [
+        1000000000.0,
+        "CCC"
+      ]
+    ]
   },
   "fuera_de_alcance": {
     "_nota": "Fase 1: no se valoran bancos, aseguradoras, gestoras ni REIT (necesitan un modelo de ROE frente a coste del capital o de valor de los activos).",
@@ -63,7 +165,11 @@
     "sufijo_reit": "REITs",
     "motivo_reit": "REIT: se valorará por flujos de operaciones y valor de los activos (fase 2)"
   },
-  "clases_secundarias": { "GOOG": "GOOGL", "FOX": "FOXA", "NWS": "NWSA" },
+  "clases_secundarias": {
+    "GOOG": "GOOGL",
+    "FOX": "FOXA",
+    "NWS": "NWSA"
+  },
   "sectores": {
     "Communication Services": "Servicios de comunicación",
     "Consumer Discretionary": "Consumo discrecional",
@@ -78,139 +184,541 @@
     "Utilities": "Suministros públicos"
   },
   "subindustrias": {
-    "Advertising": ["Publicidad", "Medios"],
-    "Broadcasting": ["Radio y televisión", "Medios"],
-    "Cable & Satellite": ["Cable y satélite", "Medios"],
-    "Publishing": ["Edición", "Medios"],
-    "Integrated Telecommunication Services": ["Telecomunicaciones integradas", "Telecomunicaciones"],
-    "Wireless Telecommunication Services": ["Telecomunicaciones móviles", "Telecomunicaciones"],
-    "Interactive Home Entertainment": ["Videojuegos", "Entretenimiento"],
-    "Movies & Entertainment": ["Cine y entretenimiento", "Entretenimiento"],
-    "Interactive Media & Services": ["Medios y servicios interactivos", "Medios y servicios interactivos"],
-    "Apparel Retail": ["Comercio de ropa", "Comercio minorista especializado"],
-    "Computer & Electronics Retail": ["Comercio de electrónica", "Comercio minorista especializado"],
-    "Home Improvement Retail": ["Bricolaje y hogar", "Comercio minorista especializado"],
-    "Automotive Retail": ["Venta de automóviles y recambios", "Comercio minorista especializado"],
-    "Homefurnishing Retail": ["Comercio de muebles y hogar", "Comercio minorista especializado"],
-    "Other Specialty Retail": ["Otro comercio especializado", "Comercio minorista especializado"],
-    "Apparel, Accessories & Luxury Goods": ["Ropa, accesorios y lujo", "Textil, confección y lujo"],
-    "Footwear": ["Calzado", "Textil, confección y lujo"],
-    "Automobile Manufacturers": ["Fabricantes de automóviles", "Automóviles"],
-    "Automotive Parts & Equipment": ["Componentes de automoción", "Componentes de automoción"],
-    "Broadline Retail": ["Comercio minorista generalista", "Comercio minorista generalista"],
-    "Casinos & Gaming": ["Casinos y juego", "Hoteles, restaurantes y ocio"],
-    "Hotels, Resorts & Cruise Lines": ["Hoteles, complejos y cruceros", "Hoteles, restaurantes y ocio"],
-    "Restaurants": ["Restaurantes", "Hoteles, restaurantes y ocio"],
-    "Consumer Electronics": ["Electrónica de consumo", "Bienes de consumo duradero"],
-    "Homebuilding": ["Promotoras de viviendas", "Bienes de consumo duradero"],
-    "Distributors": ["Distribuidores", "Distribuidores"],
-    "Leisure Products": ["Productos de ocio", "Productos de ocio"],
-    "Specialized Consumer Services": ["Servicios especializados al consumidor", "Servicios al consumidor"],
-    "Agricultural Products & Services": ["Productos y servicios agrícolas", "Alimentación"],
-    "Packaged Foods & Meats": ["Alimentos envasados y cárnicos", "Alimentación"],
-    "Consumer Staples Merchandise Retail": ["Grandes superficies de consumo básico", "Distribución de consumo básico"],
-    "Food Distributors": ["Distribución de alimentos", "Distribución de consumo básico"],
-    "Food Retail": ["Supermercados", "Distribución de consumo básico"],
-    "Distillers & Vintners": ["Destilerías y bodegas", "Bebidas"],
-    "Soft Drinks & Non-alcoholic Beverages": ["Refrescos y bebidas sin alcohol", "Bebidas"],
-    "Brewers": ["Cerveceras", "Bebidas"],
-    "Household Products": ["Productos para el hogar", "Productos para el hogar"],
-    "Personal Care Products": ["Cuidado personal", "Cuidado personal"],
-    "Tobacco": ["Tabaco", "Tabaco"],
-    "Oil & Gas Equipment & Services": ["Equipos y servicios petroleros", "Equipos y servicios energéticos"],
-    "Oil & Gas Drilling": ["Perforación de petróleo y gas", "Equipos y servicios energéticos"],
-    "Integrated Oil & Gas": ["Petroleras integradas", "Petróleo, gas y combustibles"],
-    "Oil & Gas Exploration & Production": ["Exploración y producción de petróleo y gas", "Petróleo, gas y combustibles"],
-    "Oil & Gas Refining & Marketing": ["Refino y comercialización", "Petróleo, gas y combustibles"],
-    "Oil & Gas Storage & Transportation": ["Almacenamiento y transporte de petróleo y gas", "Petróleo, gas y combustibles"],
-    "Coal & Consumable Fuels": ["Carbón y combustibles", "Petróleo, gas y combustibles"],
-    "Diversified Banks": ["Bancos diversificados", "Bancos"],
-    "Regional Banks": ["Bancos regionales", "Bancos"],
-    "Asset Management & Custody Banks": ["Gestoras y bancos custodios", "Mercados de capitales"],
-    "Financial Exchanges & Data": ["Bolsas y datos financieros", "Mercados de capitales"],
-    "Investment Banking & Brokerage": ["Banca de inversión e intermediación", "Mercados de capitales"],
-    "Consumer Finance": ["Financiación al consumo", "Financiación al consumo"],
-    "Transaction & Payment Processing Services": ["Medios de pago", "Servicios financieros"],
-    "Multi-Sector Holdings": ["Holdings diversificados", "Servicios financieros"],
-    "Insurance Brokers": ["Corredurías de seguros", "Seguros"],
-    "Life & Health Insurance": ["Seguros de vida y salud", "Seguros"],
-    "Multi-line Insurance": ["Seguros multirramo", "Seguros"],
-    "Property & Casualty Insurance": ["Seguros de daños", "Seguros"],
-    "Reinsurance": ["Reaseguro", "Seguros"],
-    "Biotechnology": ["Biotecnología", "Biotecnología"],
-    "Health Care Distributors": ["Distribución sanitaria", "Proveedores y servicios sanitarios"],
-    "Health Care Facilities": ["Centros sanitarios", "Proveedores y servicios sanitarios"],
-    "Health Care Services": ["Servicios sanitarios", "Proveedores y servicios sanitarios"],
-    "Managed Health Care": ["Aseguradoras de salud gestionada", "Proveedores y servicios sanitarios"],
-    "Health Care Equipment": ["Equipos médicos", "Equipos y suministros sanitarios"],
-    "Health Care Supplies": ["Suministros sanitarios", "Equipos y suministros sanitarios"],
-    "Health Care Technology": ["Tecnología sanitaria", "Tecnología sanitaria"],
-    "Life Sciences Tools & Services": ["Herramientas y servicios para ciencias de la vida", "Herramientas para ciencias de la vida"],
-    "Pharmaceuticals": ["Farmacéuticas", "Farmacéuticas"],
-    "Aerospace & Defense": ["Aeroespacial y defensa", "Aeroespacial y defensa"],
-    "Agricultural & Farm Machinery": ["Maquinaria agrícola", "Maquinaria"],
-    "Construction Machinery & Heavy Transportation Equipment": ["Maquinaria de construcción y vehículos pesados", "Maquinaria"],
-    "Industrial Machinery & Supplies & Components": ["Maquinaria y componentes industriales", "Maquinaria"],
-    "Air Freight & Logistics": ["Transporte aéreo de mercancías y logística", "Transporte aéreo de mercancías y logística"],
-    "Building Products": ["Productos de construcción", "Productos de construcción"],
-    "Cargo Ground Transportation": ["Transporte terrestre de mercancías", "Transporte terrestre"],
-    "Passenger Ground Transportation": ["Transporte terrestre de pasajeros", "Transporte terrestre"],
-    "Rail Transportation": ["Ferrocarril", "Transporte terrestre"],
-    "Construction & Engineering": ["Construcción e ingeniería", "Construcción e ingeniería"],
-    "Data Processing & Outsourced Services": ["Proceso de datos y externalización", "Servicios profesionales"],
-    "Human Resource & Employment Services": ["Recursos humanos y empleo", "Servicios profesionales"],
-    "Research & Consulting Services": ["Investigación y consultoría", "Servicios profesionales"],
-    "Diversified Support Services": ["Servicios de apoyo diversificados", "Servicios comerciales"],
-    "Environmental & Facilities Services": ["Servicios medioambientales y de instalaciones", "Servicios comerciales"],
-    "Electrical Components & Equipment": ["Componentes y equipos eléctricos", "Equipos eléctricos"],
-    "Heavy Electrical Equipment": ["Equipos eléctricos pesados", "Equipos eléctricos"],
-    "Industrial Conglomerates": ["Conglomerados industriales", "Conglomerados industriales"],
-    "Passenger Airlines": ["Aerolíneas", "Aerolíneas"],
-    "Trading Companies & Distributors": ["Distribución industrial", "Distribución industrial"],
-    "Marine Transportation": ["Transporte marítimo", "Transporte marítimo"],
-    "Application Software": ["Software de aplicaciones", "Software"],
-    "Systems Software": ["Software de sistemas", "Software"],
-    "Communications Equipment": ["Equipos de comunicaciones", "Equipos de comunicaciones"],
-    "Electronic Components": ["Componentes electrónicos", "Equipos y componentes electrónicos"],
-    "Electronic Equipment & Instruments": ["Equipos e instrumentos electrónicos", "Equipos y componentes electrónicos"],
-    "Electronic Manufacturing Services": ["Fabricación electrónica por encargo", "Equipos y componentes electrónicos"],
-    "Technology Distributors": ["Distribución tecnológica", "Equipos y componentes electrónicos"],
-    "IT Consulting & Other Services": ["Consultoría y servicios de TI", "Servicios de TI"],
-    "Internet Services & Infrastructure": ["Servicios e infraestructura de internet", "Servicios de TI"],
-    "Semiconductor Materials & Equipment": ["Materiales y equipos para semiconductores", "Semiconductores"],
-    "Semiconductors": ["Semiconductores", "Semiconductores"],
-    "Technology Hardware, Storage & Peripherals": ["Hardware, almacenamiento y periféricos", "Hardware tecnológico"],
-    "Commodity Chemicals": ["Química básica", "Química"],
-    "Diversified Chemicals": ["Química diversificada", "Química"],
-    "Fertilizers & Agricultural Chemicals": ["Fertilizantes y agroquímicos", "Química"],
-    "Industrial Gases": ["Gases industriales", "Química"],
-    "Specialty Chemicals": ["Química especializada", "Química"],
-    "Construction Materials": ["Materiales de construcción", "Materiales de construcción"],
-    "Copper": ["Cobre", "Metales y minería"],
-    "Gold": ["Oro", "Metales y minería"],
-    "Steel": ["Acero", "Metales y minería"],
-    "Aluminum": ["Aluminio", "Metales y minería"],
-    "Diversified Metals & Mining": ["Metales y minería diversificados", "Metales y minería"],
-    "Metal, Glass & Plastic Containers": ["Envases de metal, vidrio y plástico", "Envases y embalajes"],
-    "Paper & Plastic Packaging Products & Materials": ["Envases de papel y plástico", "Envases y embalajes"],
-    "Data Center REITs": ["REIT de centros de datos", "REIT especializados"],
-    "Other Specialized REITs": ["Otros REIT especializados", "REIT especializados"],
-    "Self-Storage REITs": ["REIT de trasteros", "REIT especializados"],
-    "Telecom Tower REITs": ["REIT de torres de telecomunicaciones", "REIT especializados"],
-    "Timber REITs": ["REIT forestales", "REIT especializados"],
-    "Multi-Family Residential REITs": ["REIT residenciales plurifamiliares", "REIT residenciales"],
-    "Single-Family Residential REITs": ["REIT de viviendas unifamiliares", "REIT residenciales"],
-    "Health Care REITs": ["REIT sanitarios", "REIT sanitarios"],
-    "Hotel & Resort REITs": ["REIT hoteleros", "REIT hoteleros"],
-    "Industrial REITs": ["REIT industriales", "REIT industriales"],
-    "Office REITs": ["REIT de oficinas", "REIT de oficinas"],
-    "Retail REITs": ["REIT comerciales", "REIT comerciales"],
-    "Real Estate Services": ["Servicios inmobiliarios", "Gestión y servicios inmobiliarios"],
-    "Electric Utilities": ["Eléctricas", "Eléctricas"],
-    "Gas Utilities": ["Gas", "Gas"],
-    "Independent Power Producers & Energy Traders": ["Productores independientes de electricidad", "Productores independientes y renovables"],
-    "Renewable Electricity": ["Electricidad renovable", "Productores independientes y renovables"],
-    "Multi-Utilities": ["Multiservicios", "Multiservicios"],
-    "Water Utilities": ["Agua", "Agua"]
+    "Advertising": [
+      "Publicidad",
+      "Medios"
+    ],
+    "Broadcasting": [
+      "Radio y televisión",
+      "Medios"
+    ],
+    "Cable & Satellite": [
+      "Cable y satélite",
+      "Medios"
+    ],
+    "Publishing": [
+      "Edición",
+      "Medios"
+    ],
+    "Integrated Telecommunication Services": [
+      "Telecomunicaciones integradas",
+      "Telecomunicaciones"
+    ],
+    "Wireless Telecommunication Services": [
+      "Telecomunicaciones móviles",
+      "Telecomunicaciones"
+    ],
+    "Interactive Home Entertainment": [
+      "Videojuegos",
+      "Entretenimiento"
+    ],
+    "Movies & Entertainment": [
+      "Cine y entretenimiento",
+      "Entretenimiento"
+    ],
+    "Interactive Media & Services": [
+      "Medios y servicios interactivos",
+      "Medios y servicios interactivos"
+    ],
+    "Apparel Retail": [
+      "Comercio de ropa",
+      "Comercio minorista especializado"
+    ],
+    "Computer & Electronics Retail": [
+      "Comercio de electrónica",
+      "Comercio minorista especializado"
+    ],
+    "Home Improvement Retail": [
+      "Bricolaje y hogar",
+      "Comercio minorista especializado"
+    ],
+    "Automotive Retail": [
+      "Venta de automóviles y recambios",
+      "Comercio minorista especializado"
+    ],
+    "Homefurnishing Retail": [
+      "Comercio de muebles y hogar",
+      "Comercio minorista especializado"
+    ],
+    "Other Specialty Retail": [
+      "Otro comercio especializado",
+      "Comercio minorista especializado"
+    ],
+    "Apparel, Accessories & Luxury Goods": [
+      "Ropa, accesorios y lujo",
+      "Textil, confección y lujo"
+    ],
+    "Footwear": [
+      "Calzado",
+      "Textil, confección y lujo"
+    ],
+    "Automobile Manufacturers": [
+      "Fabricantes de automóviles",
+      "Automóviles"
+    ],
+    "Automotive Parts & Equipment": [
+      "Componentes de automoción",
+      "Componentes de automoción"
+    ],
+    "Broadline Retail": [
+      "Comercio minorista generalista",
+      "Comercio minorista generalista"
+    ],
+    "Casinos & Gaming": [
+      "Casinos y juego",
+      "Hoteles, restaurantes y ocio"
+    ],
+    "Hotels, Resorts & Cruise Lines": [
+      "Hoteles, complejos y cruceros",
+      "Hoteles, restaurantes y ocio"
+    ],
+    "Restaurants": [
+      "Restaurantes",
+      "Hoteles, restaurantes y ocio"
+    ],
+    "Consumer Electronics": [
+      "Electrónica de consumo",
+      "Bienes de consumo duradero"
+    ],
+    "Homebuilding": [
+      "Promotoras de viviendas",
+      "Bienes de consumo duradero"
+    ],
+    "Distributors": [
+      "Distribuidores",
+      "Distribuidores"
+    ],
+    "Leisure Products": [
+      "Productos de ocio",
+      "Productos de ocio"
+    ],
+    "Specialized Consumer Services": [
+      "Servicios especializados al consumidor",
+      "Servicios al consumidor"
+    ],
+    "Agricultural Products & Services": [
+      "Productos y servicios agrícolas",
+      "Alimentación"
+    ],
+    "Packaged Foods & Meats": [
+      "Alimentos envasados y cárnicos",
+      "Alimentación"
+    ],
+    "Consumer Staples Merchandise Retail": [
+      "Grandes superficies de consumo básico",
+      "Distribución de consumo básico"
+    ],
+    "Food Distributors": [
+      "Distribución de alimentos",
+      "Distribución de consumo básico"
+    ],
+    "Food Retail": [
+      "Supermercados",
+      "Distribución de consumo básico"
+    ],
+    "Distillers & Vintners": [
+      "Destilerías y bodegas",
+      "Bebidas"
+    ],
+    "Soft Drinks & Non-alcoholic Beverages": [
+      "Refrescos y bebidas sin alcohol",
+      "Bebidas"
+    ],
+    "Brewers": [
+      "Cerveceras",
+      "Bebidas"
+    ],
+    "Household Products": [
+      "Productos para el hogar",
+      "Productos para el hogar"
+    ],
+    "Personal Care Products": [
+      "Cuidado personal",
+      "Cuidado personal"
+    ],
+    "Tobacco": [
+      "Tabaco",
+      "Tabaco"
+    ],
+    "Oil & Gas Equipment & Services": [
+      "Equipos y servicios petroleros",
+      "Equipos y servicios energéticos"
+    ],
+    "Oil & Gas Drilling": [
+      "Perforación de petróleo y gas",
+      "Equipos y servicios energéticos"
+    ],
+    "Integrated Oil & Gas": [
+      "Petroleras integradas",
+      "Petróleo, gas y combustibles"
+    ],
+    "Oil & Gas Exploration & Production": [
+      "Exploración y producción de petróleo y gas",
+      "Petróleo, gas y combustibles"
+    ],
+    "Oil & Gas Refining & Marketing": [
+      "Refino y comercialización",
+      "Petróleo, gas y combustibles"
+    ],
+    "Oil & Gas Storage & Transportation": [
+      "Almacenamiento y transporte de petróleo y gas",
+      "Petróleo, gas y combustibles"
+    ],
+    "Coal & Consumable Fuels": [
+      "Carbón y combustibles",
+      "Petróleo, gas y combustibles"
+    ],
+    "Diversified Banks": [
+      "Bancos diversificados",
+      "Bancos"
+    ],
+    "Regional Banks": [
+      "Bancos regionales",
+      "Bancos"
+    ],
+    "Asset Management & Custody Banks": [
+      "Gestoras y bancos custodios",
+      "Mercados de capitales"
+    ],
+    "Financial Exchanges & Data": [
+      "Bolsas y datos financieros",
+      "Mercados de capitales"
+    ],
+    "Investment Banking & Brokerage": [
+      "Banca de inversión e intermediación",
+      "Mercados de capitales"
+    ],
+    "Consumer Finance": [
+      "Financiación al consumo",
+      "Financiación al consumo"
+    ],
+    "Transaction & Payment Processing Services": [
+      "Medios de pago",
+      "Servicios financieros"
+    ],
+    "Multi-Sector Holdings": [
+      "Holdings diversificados",
+      "Servicios financieros"
+    ],
+    "Insurance Brokers": [
+      "Corredurías de seguros",
+      "Seguros"
+    ],
+    "Life & Health Insurance": [
+      "Seguros de vida y salud",
+      "Seguros"
+    ],
+    "Multi-line Insurance": [
+      "Seguros multirramo",
+      "Seguros"
+    ],
+    "Property & Casualty Insurance": [
+      "Seguros de daños",
+      "Seguros"
+    ],
+    "Reinsurance": [
+      "Reaseguro",
+      "Seguros"
+    ],
+    "Biotechnology": [
+      "Biotecnología",
+      "Biotecnología"
+    ],
+    "Health Care Distributors": [
+      "Distribución sanitaria",
+      "Proveedores y servicios sanitarios"
+    ],
+    "Health Care Facilities": [
+      "Centros sanitarios",
+      "Proveedores y servicios sanitarios"
+    ],
+    "Health Care Services": [
+      "Servicios sanitarios",
+      "Proveedores y servicios sanitarios"
+    ],
+    "Managed Health Care": [
+      "Aseguradoras de salud gestionada",
+      "Proveedores y servicios sanitarios"
+    ],
+    "Health Care Equipment": [
+      "Equipos médicos",
+      "Equipos y suministros sanitarios"
+    ],
+    "Health Care Supplies": [
+      "Suministros sanitarios",
+      "Equipos y suministros sanitarios"
+    ],
+    "Health Care Technology": [
+      "Tecnología sanitaria",
+      "Tecnología sanitaria"
+    ],
+    "Life Sciences Tools & Services": [
+      "Herramientas y servicios para ciencias de la vida",
+      "Herramientas para ciencias de la vida"
+    ],
+    "Pharmaceuticals": [
+      "Farmacéuticas",
+      "Farmacéuticas"
+    ],
+    "Aerospace & Defense": [
+      "Aeroespacial y defensa",
+      "Aeroespacial y defensa"
+    ],
+    "Agricultural & Farm Machinery": [
+      "Maquinaria agrícola",
+      "Maquinaria"
+    ],
+    "Construction Machinery & Heavy Transportation Equipment": [
+      "Maquinaria de construcción y vehículos pesados",
+      "Maquinaria"
+    ],
+    "Industrial Machinery & Supplies & Components": [
+      "Maquinaria y componentes industriales",
+      "Maquinaria"
+    ],
+    "Air Freight & Logistics": [
+      "Transporte aéreo de mercancías y logística",
+      "Transporte aéreo de mercancías y logística"
+    ],
+    "Building Products": [
+      "Productos de construcción",
+      "Productos de construcción"
+    ],
+    "Cargo Ground Transportation": [
+      "Transporte terrestre de mercancías",
+      "Transporte terrestre"
+    ],
+    "Passenger Ground Transportation": [
+      "Transporte terrestre de pasajeros",
+      "Transporte terrestre"
+    ],
+    "Rail Transportation": [
+      "Ferrocarril",
+      "Transporte terrestre"
+    ],
+    "Construction & Engineering": [
+      "Construcción e ingeniería",
+      "Construcción e ingeniería"
+    ],
+    "Data Processing & Outsourced Services": [
+      "Proceso de datos y externalización",
+      "Servicios profesionales"
+    ],
+    "Human Resource & Employment Services": [
+      "Recursos humanos y empleo",
+      "Servicios profesionales"
+    ],
+    "Research & Consulting Services": [
+      "Investigación y consultoría",
+      "Servicios profesionales"
+    ],
+    "Diversified Support Services": [
+      "Servicios de apoyo diversificados",
+      "Servicios comerciales"
+    ],
+    "Environmental & Facilities Services": [
+      "Servicios medioambientales y de instalaciones",
+      "Servicios comerciales"
+    ],
+    "Electrical Components & Equipment": [
+      "Componentes y equipos eléctricos",
+      "Equipos eléctricos"
+    ],
+    "Heavy Electrical Equipment": [
+      "Equipos eléctricos pesados",
+      "Equipos eléctricos"
+    ],
+    "Industrial Conglomerates": [
+      "Conglomerados industriales",
+      "Conglomerados industriales"
+    ],
+    "Passenger Airlines": [
+      "Aerolíneas",
+      "Aerolíneas"
+    ],
+    "Trading Companies & Distributors": [
+      "Distribución industrial",
+      "Distribución industrial"
+    ],
+    "Marine Transportation": [
+      "Transporte marítimo",
+      "Transporte marítimo"
+    ],
+    "Application Software": [
+      "Software de aplicaciones",
+      "Software"
+    ],
+    "Systems Software": [
+      "Software de sistemas",
+      "Software"
+    ],
+    "Communications Equipment": [
+      "Equipos de comunicaciones",
+      "Equipos de comunicaciones"
+    ],
+    "Electronic Components": [
+      "Componentes electrónicos",
+      "Equipos y componentes electrónicos"
+    ],
+    "Electronic Equipment & Instruments": [
+      "Equipos e instrumentos electrónicos",
+      "Equipos y componentes electrónicos"
+    ],
+    "Electronic Manufacturing Services": [
+      "Fabricación electrónica por encargo",
+      "Equipos y componentes electrónicos"
+    ],
+    "Technology Distributors": [
+      "Distribución tecnológica",
+      "Equipos y componentes electrónicos"
+    ],
+    "IT Consulting & Other Services": [
+      "Consultoría y servicios de TI",
+      "Servicios de TI"
+    ],
+    "Internet Services & Infrastructure": [
+      "Servicios e infraestructura de internet",
+      "Servicios de TI"
+    ],
+    "Semiconductor Materials & Equipment": [
+      "Materiales y equipos para semiconductores",
+      "Semiconductores"
+    ],
+    "Semiconductors": [
+      "Semiconductores",
+      "Semiconductores"
+    ],
+    "Technology Hardware, Storage & Peripherals": [
+      "Hardware, almacenamiento y periféricos",
+      "Hardware tecnológico"
+    ],
+    "Commodity Chemicals": [
+      "Química básica",
+      "Química"
+    ],
+    "Diversified Chemicals": [
+      "Química diversificada",
+      "Química"
+    ],
+    "Fertilizers & Agricultural Chemicals": [
+      "Fertilizantes y agroquímicos",
+      "Química"
+    ],
+    "Industrial Gases": [
+      "Gases industriales",
+      "Química"
+    ],
+    "Specialty Chemicals": [
+      "Química especializada",
+      "Química"
+    ],
+    "Construction Materials": [
+      "Materiales de construcción",
+      "Materiales de construcción"
+    ],
+    "Copper": [
+      "Cobre",
+      "Metales y minería"
+    ],
+    "Gold": [
+      "Oro",
+      "Metales y minería"
+    ],
+    "Steel": [
+      "Acero",
+      "Metales y minería"
+    ],
+    "Aluminum": [
+      "Aluminio",
+      "Metales y minería"
+    ],
+    "Diversified Metals & Mining": [
+      "Metales y minería diversificados",
+      "Metales y minería"
+    ],
+    "Metal, Glass & Plastic Containers": [
+      "Envases de metal, vidrio y plástico",
+      "Envases y embalajes"
+    ],
+    "Paper & Plastic Packaging Products & Materials": [
+      "Envases de papel y plástico",
+      "Envases y embalajes"
+    ],
+    "Data Center REITs": [
+      "REIT de centros de datos",
+      "REIT especializados"
+    ],
+    "Other Specialized REITs": [
+      "Otros REIT especializados",
+      "REIT especializados"
+    ],
+    "Self-Storage REITs": [
+      "REIT de trasteros",
+      "REIT especializados"
+    ],
+    "Telecom Tower REITs": [
+      "REIT de torres de telecomunicaciones",
+      "REIT especializados"
+    ],
+    "Timber REITs": [
+      "REIT forestales",
+      "REIT especializados"
+    ],
+    "Multi-Family Residential REITs": [
+      "REIT residenciales plurifamiliares",
+      "REIT residenciales"
+    ],
+    "Single-Family Residential REITs": [
+      "REIT de viviendas unifamiliares",
+      "REIT residenciales"
+    ],
+    "Health Care REITs": [
+      "REIT sanitarios",
+      "REIT sanitarios"
+    ],
+    "Hotel & Resort REITs": [
+      "REIT hoteleros",
+      "REIT hoteleros"
+    ],
+    "Industrial REITs": [
+      "REIT industriales",
+      "REIT industriales"
+    ],
+    "Office REITs": [
+      "REIT de oficinas",
+      "REIT de oficinas"
+    ],
+    "Retail REITs": [
+      "REIT comerciales",
+      "REIT comerciales"
+    ],
+    "Real Estate Services": [
+      "Servicios inmobiliarios",
+      "Gestión y servicios inmobiliarios"
+    ],
+    "Electric Utilities": [
+      "Eléctricas",
+      "Eléctricas"
+    ],
+    "Gas Utilities": [
+      "Gas",
+      "Gas"
+    ],
+    "Independent Power Producers & Energy Traders": [
+      "Productores independientes de electricidad",
+      "Productores independientes y renovables"
+    ],
+    "Renewable Electricity": [
+      "Electricidad renovable",
+      "Productores independientes y renovables"
+    ],
+    "Multi-Utilities": [
+      "Multiservicios",
+      "Multiservicios"
+    ],
+    "Water Utilities": [
+      "Agua",
+      "Agua"
+    ]
   }
 }

@@ -154,6 +154,14 @@ def datos_empresa(c, y, V, avisos_globales):
     ebitda = S.v("EBITDA")
     if da is None and ebitda is not None and ebit is not None: da = max(0.0, ebitda - ebit)
     if ebitda is None and ebit is not None: ebitda = ebit + (da or 0)
+    # base EBITA: se suma la amortización de intangibles adquiridos (no es un coste recurrente de explotación) y se quita
+    # de la amortización que se suma al flujo de caja, para no contarla dos veces
+    amort = next((x for x in (S.v("AmortizationOfIntangibles"), S.v("AmortizationCashFlow"), S.v("AmortizationOfIntangiblesIncomeStatement")) if x is not None), 0.0)
+    amort = max(0.0, min(amort, da or 0.0))
+    ebit_contable = ebit
+    if ebit is not None: ebit = ebit + amort
+    if da is not None: da = da - amort
+    sbc = S.v("StockBasedCompensation", "ttm", 0.0) or 0.0
     capex = S.v("CapitalExpenditure")
     capex = -capex if capex is not None else None
     pre, prov = S.v("PretaxIncome"), S.v("TaxProvision")
@@ -184,6 +192,7 @@ def datos_empresa(c, y, V, avisos_globales):
 
     e.update({"moneda": pr.get("currency"), "acciones_m": acc, "cap": px * acc if acc else None,
               "ventas_ttm": ventas, "ebit_ttm": ebit, "ebitda_ttm": ebitda, "da_ttm": da, "capex_ttm": capex,
+              "ebit_contable": ebit_contable, "amortizacion_intangibles": amort, "sbc_ttm": sbc,
               "fecha_ttm": f_ttm, "fecha_balance": f_bal})
     cal = (qs.get("calendarEvents") or {}).get("earnings") or {}
     fechas = cal.get("earningsDate") or []
@@ -252,8 +261,7 @@ def datos_empresa(c, y, V, avisos_globales):
 
     # ------------------------------------------------ consenso: anclas de los años 1-2
     C = Consenso(qs)
-    aux = {"S": S, "C": C, "tax": tax, "pre": pre, "gi": gi, "ii": ii}
-    anc = anclas(e, C, S, tax, pre, gi, ii)
+    anc = anclas(e, C, S, tax, pre, gi, ii, sbc)
     if anc is None:
         anc = anclas_sin_consenso(e, S)
         e["avisos"].append("sin_consenso")
@@ -264,7 +272,7 @@ def datos_empresa(c, y, V, avisos_globales):
     return e, C
 
 
-def anclas(e, C, S, tax, pre, gi, ii):
+def anclas(e, C, S, tax, pre, gi, ii, sbc=0.0):
     """Años 1-2 (crecimiento y margen EBIT) en los tres escenarios desde el consenso. None si no es utilizable."""
     if any(C.est(p, "rev") is None for p in ("0y", "+1y")) or C.est("+1y", "eps") is None: return None
     if C.est("0y", "eps") is None:  # algunos BPA del ejercicio en curso faltan en Yahoo: se deduce del siguiente
@@ -288,13 +296,16 @@ def anclas(e, C, S, tax, pre, gi, ii):
     eps_ttm = sum(eps_act) if hist_ok else None
     gross = lambda eps: eps * acc / (1 - tax)
     # ajuste entre el BPA del consenso (a menudo "ajustado") y el EBIT contable: se calibra con los últimos doce meses
-    limpio = eps_ttm is not None and eps_ttm > 0 and ebit > 0 and (pre is None or pre <= 1.2 * ebit) and abs(gross(eps_ttm) - ebit) <= 0.6 * ebit
-    if limpio:
-        ajuste = gross(eps_ttm) - ebit
-        modo = "calibrado"
+    pre_op = (pre + amort_de(e)) if pre is not None else None
+    if eps_ttm is not None and eps_ttm > 0 and ebit > 0 and (pre_op is None or pre_op <= 1.2 * ebit) and abs(gross(eps_ttm) - ebit) <= 0.6 * ebit:
+        # el BPA publicado y el EBITA contable son comparables: la diferencia (intereses, partidas ajustadas) se mantiene
+        ajuste, modo = gross(eps_ttm) - ebit, "calibrado"
+    elif eps_ttm is not None and eps_ttm > 0 and ebit > 0 and (pre_op is None or pre_op <= 1.2 * ebit):
+        # BPA "ajustado" muy por encima del contable (cargos no recurrentes, etc.): base ajustada menos la remuneración en acciones
+        ajuste, modo = -((gi or 0) - (ii or 0)) + sbc, "ajustado"
     else:
-        ajuste = -((gi or 0) - (ii or 0))
-        modo = "bruto"
+        # sin histórico comparable o con plusvalías extraordinarias en los últimos doce meses: BPA bruto + intereses netos
+        ajuste, modo = -((gi or 0) - (ii or 0)), "bruto"
     ebit_de = lambda eps, v: gross(eps) - ajuste * v / ventas
 
     def anio1(k):
@@ -344,13 +355,18 @@ def anclas(e, C, S, tax, pre, gi, ii):
     # control de coherencia del caso medio; los extremos del consenso (un solo analista) se acotan alrededor de él
     o, m_ttm = out["avg"], ebit / ventas
     if not (-0.5 < o["g1"] < 3 and -0.6 < o["g2"] < 3 and -0.6 < o["m1"] < 0.9 and -0.6 < o["m2"] < 0.9): return None
-    if ebit > 0 and (abs(o["m1"] - m_ttm) > 0.25 or abs(o["m2"] - m_ttm) > 0.3): return None
+    tol = 0.40 if modo == "ajustado" else 0.25
+    if ebit > 0 and (abs(o["m1"] - m_ttm) > tol or abs(o["m2"] - m_ttm) > tol + 0.05): return None
     for k, sg in (("low", -1), ("high", 1)):
         for x, lim in (("g1", 0.25), ("g2", 0.25), ("m1", 0.10), ("m2", 0.10)):
             d = (out[k][x] - o[x]) * sg
             out[k][x] = o[x] + sg * min(max(d, 0.0), lim)
     out["_modo"] = modo; out["_qrem"] = qrem
     return out
+
+
+def amort_de(e):
+    return e.get("amortizacion_intangibles") or 0.0
 
 
 def anclas_sin_consenso(e, S):
@@ -372,6 +388,8 @@ def trayectoria(e, med_margen):
     a = e["_anc"]
     m2b = a["avg"]["m2"]
     m10 = m2b + R["peso_reversion_margen"] * (med_margen - m2b) if med_margen is not None else m2b
+    if m2b > 0:  # la reversión no lleva el margen más de un 30 % por encima o por debajo del del año 2
+        m10 = min(max(m10, m2b * (1 - R["margen10_banda_rel"])), m2b * (1 + R["margen10_banda_rel"]))
     m10p = m10 - max(abs(m10) * -R["margen10_pesimista_rel"], R["margen10_dif_min"])
     m10o = m10 + max(abs(m10) * R["margen10_optimista_rel"], R["margen10_dif_min"])
     da = clip(e["da_ttm"] / e["ventas_ttm"], 0.0, 0.4)
@@ -405,6 +423,7 @@ def adelantados(e, C, y, V):
     eve_f = evt / ratio if evt and evt > 0 and ratio else None
     if ratio and not (0.7 <= ratio <= 2.5): eve_f = None
     if (n1 or 0) < R["analistas_min"]: per_f = eve_f = None
+    if eve_f is not None and eve_f > R["ev_ebitda_max"]: eve_f = None
     ev, mc = ts.get("trailingEnterpriseValue"), ts.get("trailingMarketCap")
     nd = (ev[-1][1] - mc[-1][1]) / 1e6 if ev and mc else e.get("deuda_financiera_neta", 0) + e.get("minoritarios", 0) - e.get("inversiones_no_operativas", 0)
     return {"eps_ntm": eps, "ratio": ratio, "per_fwd": per_f, "ev_ebitda_fwd": eve_f, "evt": evt, "nd": nd, "n": n1}
@@ -501,10 +520,24 @@ def main():
             if len(xs) >= 3: return stt.median(xs)
         return None
     margen = lambda x: x["ebit_ttm"] / x["ventas_ttm"] if x["ebit_ttm"] > 0 else None
+    de = lambda x: x["deuda_bruta"] / x["cap"] if x.get("cap") else 0.0
     for e in cand:
         b = e.get("beta_yahoo")
-        if b is None or not math.isfinite(b): b = mediana_grupo(e, lambda x: x.get("beta_yahoo")) or 1.0; e["beta_origen"] = "mediana de la subindustria"
-        e["beta"] = round(clip(b, R["beta_min"], R["beta_max"]), 2)
+        e["beta_desapalancada"] = clip(b, R["beta_min"], R["beta_max"]) / (1 + (1 - e["tipo_impositivo"]) * de(e)) if b is not None and math.isfinite(b) else None
+    def mediana_amplia(e, f):  # industria GICS (5 o más empresas) o sector: menos ruido que la subindustria
+        for g in (por_ind[e["industria"]], por_sec[e["sector"]]):
+            xs = [f(x) for x in g if f(x) is not None]
+            if len(xs) >= 5: return stt.median(xs)
+        return None
+    for e in cand:
+        # beta ajustada: media entre la beta de mercado de la empresa (Yahoo, 5 años) y la beta de su industria
+        # desapalancada y vuelta a apalancar con la deuda de la empresa (enfoque "bottom-up" de Damodaran)
+        bu = mediana_amplia(e, lambda x: x.get("beta_desapalancada"))
+        if bu is None: bu = e["beta_desapalancada"] or 1.0
+        bl = clip(bu * (1 + (1 - e["tipo_impositivo"]) * de(e)), R["beta_relevada_min"], R["beta_relevada_max"])
+        by = clip(e["beta_yahoo"], R["beta_min"], R["beta_max"]) if e.get("beta_yahoo") is not None and math.isfinite(e["beta_yahoo"]) else bl
+        e["beta_desapalancada_sector"] = round(bu, 3); e["beta_sector_apalancada"] = round(bl, 3)
+        e["beta"] = round(max((by + bl) / 2, R["beta_final_min"]), 2)
         e["margen_referencia"] = mediana_grupo(e, margen)
         e["tr"] = trayectoria(e, e["margen_referencia"])
         e["valorada"] = True

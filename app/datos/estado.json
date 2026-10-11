@@ -1,0 +1,36 @@
+{
+ "actualizado": "2026-10-11T10:54+00:00",
+ "fecha_mercado": "2026-10-09",
+ "fuente_lista": "Wikipedia (List of S&P 500 companies)",
+ "componentes": 503,
+ "valoradas": 418,
+ "no_valoradas": {
+  "Seguros: modelo específico (fase 2)": 17,
+  "REIT: se valorará por flujos de operaciones y valor de los activos (fase 2)": 28,
+  "Otra clase de acciones de la misma empresa: ver GOOGL": 1,
+  "Financiación al consumo: modelo específico (fase 2)": 3,
+  "Gestoras y bancos custodios: modelo específico (fase 2)": 12,
+  "Banca: se valorará con un modelo específico (fase 2)": 13,
+  "Holding con aseguradoras: modelo específico (fase 2)": 1,
+  "Banca de inversión: modelo específico (fase 2)": 6,
+  "Datos financieros insuficientes en Yahoo Finance (beneficio operativo)": 1,
+  "Otra clase de acciones de la misma empresa: ver FOXA": 1,
+  "Otra clase de acciones de la misma empresa: ver NWSA": 1,
+  "Datos financieros insuficientes en Yahoo Finance (ventas, beneficio operativo)": 1
+ },
+ "sin_consenso": [
+  "CBOE",
+  "ECHO",
+  "INCY",
+  "MRK",
+  "MRNA",
+  "TPL"
+ ],
+ "fallos_descarga": {},
+ "avisos": [],
+ "resumen": {
+  "valoradas": 418,
+  "por_debajo_central": 191,
+  "potencial_mediano": -0.0337
+ }
+}
