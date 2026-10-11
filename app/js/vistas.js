@@ -172,7 +172,7 @@
     main.append(A.migas([['Mercado', '#/mercado'], [e.sector, hSec(e.sector)], [e.industria, hInd(e.sector, e.industria)], [e.nombre]]));
     const cab = h('header', { class: 'sv-head' },
       h('div', { class: 'ap-tit' }, h('h1', { class: 'sv-h1' }, `${e.nombre} `, h('span', { class: 'ap-tk-g' }, e.ticker)),
-        h('div', { class: 'ap-tit-b' }, A.botonSeg(e.ticker), A.botonCmp(e.ticker), e.valorada ? h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe') : null)),
+        h('div', { class: 'ap-tit-b' }, A.botonSeg(e.ticker), A.botonCmp(e.ticker), e.valorada ? h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe') : null, e.valorada ? A.botonPdf(e.ticker) : null)),
       h('p', { class: 'sv-meta' }, [e.empresa !== e.nombre ? e.empresa : null, e.subindustria, e.sede, e.cap ? `capitalización ${mill(e.cap)}` : null,
         e.proximos_resultados ? `próximos resultados: ${fecha(e.proximos_resultados)}` : null].filter(Boolean).join(' · ')));
     main.append(cab);
@@ -181,8 +181,9 @@
       if (e.principal) main.append(h('p', null, A.enlace('#/empresa/' + e.principal, `Ver la valoración de ${e.principal} ›`)));
       main.append(h('section', { class: 'sv-kpis' }, A.kpi('Cotización', usd(e.cotizacion, 2), e.cap ? mill(e.cap) : null),
         e.analistas && e.analistas.objetivo ? A.kpi('Precio objetivo medio de los analistas', usd(e.analistas.objetivo, 0), `${e.analistas.n || '—'} analistas · ${pct(e.analistas.objetivo / e.cotizacion - 1, 0, true)}`) : ''));
-      main.append(tarjetaCotizacion(e, null));
+      main.append(A.tarjetaMia(e), tarjetaCotizacion(e, null));
       if (e.graham) main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+      main.append(h('div', { class: 'sv-grid2' }, tarjetaConsenso(e), tarjetaDividendo(e)));
       main.append(tarjetaHistoria(e), tarjetaDescripcion(e));
       return;
     }
@@ -204,6 +205,7 @@
       A.kpi(['WACC ', A.ayuda('wacc')], pct(v.w, 2), `Ke ${pct(v.W.ke, 1)} (beta ${num(v.W.beta, 2)}) · Kd ${pct(v.W.kd, 1)} · deuda ${pct(v.W.wd, 0)}`),
     ));
     main.append(tarjetaAjustes(e, aj, v, vd));
+    main.append(A.tarjetaMia(e));
     main.append(tarjetaCotizacion(e, v));
     const ivNota = h('p', { class: 'sv-kpi-r' });
     const ivLeg = h('div');
@@ -223,6 +225,7 @@
     main.append(tarjetaProyeccion(e, v));
     main.append(tarjetaComparables(e));
     main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaConsenso(e), tarjetaDividendo(e)));
     main.append(tarjetaHistoria(e));
     main.append(tarjetaSupuestos(e, v));
     main.append(h('div', { class: 'sv-grid2' }, tarjetaAnalistas(e, v), tarjetaExportar(e)));
@@ -258,8 +261,11 @@
       } catch (err) { console.error(err); st.textContent = 'No se ha podido generar el fichero.'; }
       b.disabled = false;
     });
-    return A.tarjeta('Llévate el modelo', `Hoja de cálculo con la valoración de ${e.nombre} construida con fórmulas: supuestos (en amarillo), proyección de los tres escenarios, valor terminal, múltiplos y valor central, con los supuestos que tienes ahora en el simulador.`,
-      h('div', { class: 'sv-bar' }, b, h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe imprimible')), st);
+    const st2 = h('p', { class: 'sv-ctrl-d', role: 'status' });
+    const pdf = (lang, tx) => { const x = h('button', { type: 'button', class: 'sv-btn' }, tx); x.addEventListener('click', () => A.descargarPdf(e.ticker, lang, x, st2)); return x; };
+    return A.tarjeta('Llévate el modelo y el informe', `Hoja de cálculo con la valoración de ${e.nombre} construida con fórmulas: supuestos (en amarillo), proyección de los tres escenarios, valor terminal, múltiplos y valor central. Y el informe completo en PDF: resumen con puntos fuertes y riesgos, catalizadores, 10 años de cuentas, valoración, comparables, calidad, conclusiones y fuentes. Los dos usan los supuestos que tienes ahora en el simulador.`,
+      h('div', { class: 'sv-bar' }, b, h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Ver el informe')), st,
+      h('div', { class: 'sv-bar' }, pdf('es', 'Informe en PDF (castellano)'), pdf('ca', 'Informe en PDF (català)')), st2);
   }
 
   function empresaFase2(main, e, aj, v, vd) {
@@ -272,6 +278,7 @@
       A.kpi([M.imp + ' ', A.ayuda('implicito')], imp == null ? 'n.s.' : pct(imp, 1), refImp),
       A.kpi(['Coste de los recursos propios (Ke) ', A.ayuda('ke')], pct(v.w, 2), `Tipo sin riesgo + beta ${num(v.W.beta, 2)} × prima de riesgo`)));
     main.append(tarjetaAjustesF2(e, aj, v, vd));
+    main.append(A.tarjetaMia(e));
     main.append(tarjetaCotizacion(e, v));
     const anios = d3.range(1, 11).map(String);
     const series = [['base', 'var(--s1)'], ['pes', 'var(--s2)'], ['opt', 'var(--s3)']];
@@ -301,6 +308,7 @@
     main.append(tarjetaProyeccionF2(e, v));
     main.append(tarjetaComparables(e));
     main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaConsenso(e), tarjetaDividendo(e)));
     main.append(tarjetaHistoria(e));
     main.append(tarjetaSupuestosF2(e, v));
     main.append(h('div', { class: 'sv-grid2' }, tarjetaAnalistas(e, v), tarjetaExportar(e)));
@@ -575,7 +583,7 @@
       G.temporal(cont, series, { alto: 250, refs, fmtY: (x) => num(x, 0), prefijo: 'Semana del ' });
       const r = p[p.length - 1][1] / p[0][1] - 1, rs = spR.length ? spR[spR.length - 1][1] / spR[0][1] - 1 : null;
       const u52 = px.filter((x) => +x[0] >= +fin - 365 * 864e5).map((x) => x[1]);
-      resumenTxt.textContent = `En ${rango === 1 ? 'el último año' : `los últimos ${rango} años`}: ${pct(r, 0, true)}${rs != null ? ` (S&P 500: ${pct(rs, 0, true)})` : ''}, sin dividendos. ` +
+      resumenTxt.textContent = `En ${rango === 1 ? 'el último año' : `los últimos ${rango} años`}: ${pct(r, 0, true)}${rs != null ? ` (S&P 500: ${pct(rs, 0, true)})` : ''}, sin contar dividendos. ` +
         `Máximo y mínimo de las últimas 52 semanas: ${usd(d3.max(u52), 2)} y ${usd(d3.min(u52), 2)} (cotización ${pct(e.cotizacion / d3.max(u52) - 1, 0, true)} desde el máximo).`;
     }
     Promise.all([cargarPx(e.ticker), cargarPx('^GSPC')]).then((d) => { datos = d; requestAnimationFrame(() => { if (cont.isConnected) dibujar(); }); })
@@ -623,6 +631,52 @@
               S(k).map((x) => h('td', null, x == null ? '—' : u ? num(x / u, grande ? 1 : 0) : num(x, 2))))))))));
     }).catch(() => cuerpo.replaceChildren(h('p', { class: 'sv-card-n' }, 'No se ha podido cargar la historia.')));
     return A.tarjeta(['Historia de 10 años ', A.ayuda('sec')], 'Ejercicios presentados a la SEC (formularios 10-K), por año natural. BPA y dividendo por acción ajustados por splits. Con esta historia se calculan los criterios de Graham de beneficios, dividendos y crecimiento del BPA a 10 años.', cuerpo);
+  }
+
+  // ---------------------------------------------------------------- ficha: resultados y consenso de los analistas
+  function tarjetaConsenso(e) {
+    const c = e.consenso || {};
+    const dd = e.proximos_resultados ? Math.round((new Date(e.proximos_resultados + 'T00:00:00Z') - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')) / 864e5) : null;
+    const dl = (pares) => h('dl', { class: 'ap-dl' }, pares.filter(Boolean).map(([k, x]) => [h('dt', null, k), h('dd', null, x)]));
+    const dc4 = A.cambioCentral(e.ticker, 4);
+    const filas = [
+      e.proximos_resultados ? ['Próximos resultados', `${fecha(e.proximos_resultados)}${c.fecha_estimada ? ' (fecha estimada)' : ''}${dd != null && dd >= 0 ? ` · en ${dd} ${dd === 1 ? 'día' : 'días'}` : ''}`] : ['Próximos resultados', 'sin fecha'],
+      c.prox_bpa != null ? ['BPA esperado del trimestre', `${usd(c.prox_bpa, 2)}${c.prox_bpa_bajo != null ? ` (entre ${usd(c.prox_bpa_bajo, 2)} y ${usd(c.prox_bpa_alto, 2)})` : ''}${c.prox_ventas ? ` · ventas ${mill(c.prox_ventas / 1e6)}` : ''}`] : null,
+      c.ult_bpa != null ? [[`Último trimestre (${fecha(c.ult_trimestre)}) `, A.ayuda('sorpresa')], [`BPA ${usd(c.ult_bpa, 2)} frente a ${usd(c.ult_esperado, 2)} esperado: `, A.potSpan(c.ult_sorpresa, 1)]] : null,
+      c.bpa_0y != null ? [[`BPA esperado del ejercicio${c.fin_0y ? ` (cierre ${fecha(c.fin_0y)})` : ''} `, A.ayuda('revision-consenso')], [`${usd(c.bpa_0y, 2)} · en 30 días `, A.potSpan(c.rev30, 1), ' · en 90 días ', A.potSpan(c.rev90, 1)]] : null,
+      c.bpa_1y != null ? ['BPA esperado del ejercicio siguiente', [`${usd(c.bpa_1y, 2)} · en 90 días `, A.potSpan(c.rev90_1y, 1)]] : null,
+      c.suben30 != null ? ['Analistas en los últimos 30 días', `${c.suben30} suben y ${c.bajan30} bajan su previsión de BPA del ejercicio`] : null,
+      dc4 != null ? ['Valor central del modelo en 4 semanas', A.potSpan(dc4, 1)] : null,
+    ];
+    const t0 = c.tendencia_0y || [], t1 = c.tendencia_1y || [];
+    const et = ['−90 d', '−60 d', '−30 d', '−7 d', 'Hoy'];
+    const hayT = t0.filter((x) => x != null).length >= 3;
+    const s4 = (c.sorpresas || []).filter((x) => x[1] != null);
+    return A.tarjeta(['Resultados y consenso ', A.ayuda('consenso')], 'Previsiones de los analistas según Yahoo Finance: si suben, el mercado suele premiarlo; si bajan, conviene revisar la tesis.',
+      dl(filas),
+      hayT ? h('div', null, h('p', { class: 'ap-mini-t' }, 'Evolución del BPA esperado (ejercicio en curso y siguiente)'),
+        G.leyenda([['Ejercicio en curso', 'var(--s1)'], ['Siguiente', 'var(--s3)']]),
+        G.caja(150, (cc) => G.lineas(cc, [{ n: 'Ejercicio en curso', color: 'var(--s1)', puntos: et.map((x, i) => [x, t0[i]]) }].concat(t1.filter((x) => x != null).length >= 3 ? [{ n: 'Siguiente', color: 'var(--s3)', puntos: et.map((x, i) => [x, t1[i]]) }] : []), { alto: 150, fmtY: (d) => num(d, 2), fmtTip: (d) => usd(d, 2) }))) : null,
+      s4.length ? h('div', { class: 'sv-tw' }, h('table', { class: 'sv-table ap-esc' },
+        h('thead', null, h('tr', null, ['Trimestre', 'BPA publicado', 'Esperado', 'Sorpresa'].map((x) => h('th', null, x)))),
+        h('tbody', null, s4.slice().reverse().map(([q, a, es]) => h('tr', null, h('td', null, fecha(q)), h('td', null, usd(a, 2)), h('td', null, usd(es, 2)), h('td', null, es ? A.potSpan((a - es) / Math.abs(es), 1) : '—')))))) : null);
+  }
+
+  // ---------------------------------------------------------------- ficha: dividendo
+  function tarjetaDividendo(e) {
+    const d = e.dividendo || {};
+    const dl = (pares) => h('dl', { class: 'ap-dl' }, pares.filter(Boolean).map(([k, x]) => [h('dt', null, k), h('dd', null, x)]));
+    if (!d.dpa) {
+      return A.tarjeta('Dividendo', null, h('p', { class: 'sv-card-n' }, `${e.nombre} no paga dividendo${e.recompras_ttm ? `; en los últimos doce meses ha dedicado ${mill(e.recompras_ttm)} a recomprar acciones` : ''}.`));
+    }
+    return A.tarjeta(['Dividendo ', A.ayuda('rentabilidad-dividendo')], 'Dividendo anual actual (Yahoo Finance) e historia de los formularios 10-K de la SEC. Los años seguidos subiéndolo son aproximados: dependen de cómo declare cada empresa el dividendo por acción.',
+      h('p', { class: 'ap-f' }, h('span', { class: 'ap-f-n' }, pct(d.rent, 2)), h('span', null, ' de rentabilidad')),
+      dl([['Dividendo anual por acción', usd(d.dpa, 2)],
+        d.payout != null ? [A.conAyuda('Parte del beneficio que reparte (payout)', 'payout'), `${pct(d.payout, 0)}${d.payout > 1 ? ' (más que el beneficio contable)' : ''}`] : null,
+        d.ex ? [A.conAyuda('Última fecha ex-dividendo', 'ex-dividendo'), fecha(d.ex)] : null,
+        d.paga != null ? ['Años seguidos pagándolo (SEC)', String(d.paga)] : null,
+        d.sube != null ? [A.conAyuda('Años seguidos subiéndolo (SEC)', 'dividendo-creciente'), String(d.sube)] : null,
+        d.cagr != null ? [`Crecimiento anual ${d.cagr_desde}–${d.cagr_hasta}`, pct(d.cagr, 1, true)] : null]));
   }
 
   // ---------------------------------------------------------------- ficha: Piotroski y fórmula mágica
@@ -737,107 +791,14 @@
   };
 
   // ---------------------------------------------------------------- INFORME (imprimible)
-  V.informe = function (main, [t]) {
-    const e = A.D.porT[String(t || '').toUpperCase()];
-    if (!e || !e.valorada) { main.append(h('p', { class: 'sv-warn' }, 'No hay informe para esta empresa.'), A.enlace('#/mercado', 'Volver al mercado')); return; }
-    const aj = A.aj(e.ticker), v = A.valor(e.ticker), Vd = A.valoresDef()[e.ticker];
-    const fc = e.modelo === 'fcff', ri = e.modelo === 'ri', M = MODELOS[e.modelo];
-    const imp = MOTOR.implicito(e, A.S.par, aj, v);
-    const ms = A.margenSeg(v.central, e.cotizacion), gr = A.graham(e), av = A.avisosDe(e, v), b = v.res.base;
-    const cb = fc ? MOTOR.camino(e.trays.base, aj) : null, media5 = fc ? cb.gr.slice(0, 5).reduce((s, x) => s + x, 0) / 5 : null;
-    const cambiado = A.parCambiado() || A.ajCambiado(e.ticker);
-    const veredicto = v.central <= 0 || !v.valido ? 'Sin valor significativo con este modelo' : ms >= 0.25 ? 'Infravalorada con margen de seguridad (≥ 25 %)' : v.pot > 0.05 ? 'Ligeramente infravalorada' : v.pot >= -0.05 ? 'En línea con su valor' : v.pot >= -0.25 ? 'Ligeramente sobrevalorada' : 'Sobrevalorada';
-    const imprimir = h('button', { type: 'button', class: 'ap-inst' }, A.leer('sp-inf-lang', 'es') === 'ca' ? 'Imprimir o desar en PDF' : 'Imprimir o guardar en PDF');
-    imprimir.addEventListener('click', () => window.print());
-    const P = (txt) => h('p', null, txt);
-    const est = A.D.estado || {};
-    const nomIntr = fc ? 'El DCF ponderado por escenarios' : ri ? 'El modelo de beneficio residual, ponderado por escenarios,' : 'El descuento del AFFO, ponderado por escenarios,';
-    const corto = fc ? 'DCF' : 'modelo intrínseco';
-    let txtImp;
-    if (imp == null) txtImp = 'No se puede calcular lo que descuenta la cotización con estos supuestos.';
-    else if (fc) txtImp = `La cotización actual descuenta un crecimiento de las ventas del ${pct(imp, 1)} anual en los próximos cinco años, frente al ${pct(media5, 1)} del caso base (consenso de analistas en los años 1–2). ` + (imp > media5 ? 'El mercado espera más crecimiento que el modelo.' : 'El mercado espera menos crecimiento que el modelo.');
-    else if (ri) txtImp = `La cotización actual descuenta un ROE a largo plazo del ${pct(imp, 1)}, frente al ${pct(b.roeLT, 1)} del caso base y a un coste de los recursos propios del ${pct(v.w, 1)}. ` + (imp > b.roeLT ? 'El mercado espera que mantenga más rentabilidad que el modelo.' : 'El mercado espera menos rentabilidad que el modelo.');
-    else txtImp = `La cotización actual descuenta un crecimiento del AFFO del ${pct(imp, 1)} anual en los próximos cinco años, frente al ${pct((e.reit.g1[1] + e.reit.g2[1]) / 2 + (aj.dg || 0), 1)} de media en los años 1–2 del caso base. ` + (imp > e.reit.g1[1] ? 'El mercado espera más crecimiento que el modelo.' : 'El mercado espera menos crecimiento que el modelo.');
-    const anios = d3.range(1, 11).map(String);
-    const series = [['base', 'var(--s1)'], ['pes', 'var(--s2)'], ['opt', 'var(--s3)']];
-    let sec3, sec4, sec5;
-    if (fc) {
-      sec3 = [h('h2', null, '3. Proyección y flujos de caja'),
-        P(`Ventas de los últimos doce meses: ${mill(e.ventas_ttm)}, con un margen EBITA del ${pct(e.ebit_ttm / e.ventas_ttm, 1)}. En el caso base, las ventas crecen un ${pct(e.tr.g1[1], 1)} el año 1 y un ${pct(e.tr.g2[1], 1)} el año 2 y convergen al ${pct(e.tr.g10, 1)} en el año 10; el margen pasa del ${pct(e.tr.m2[1], 1)} del año 2 al ${pct(cb.mg[9], 1)} del año 10.`),
-        tarjetaProyeccion(e, v), G.leyenda([['Base', 'var(--s1)'], ['Pesimista', 'var(--s2)'], ['Optimista', 'var(--s3)']]), G.caja(220, (c) => G.flujos(c, e, v))];
-      sec4 = [h('h2', null, '4. Coste del capital y sensibilidad'),
-        P(`WACC del ${pct(v.w, 2)}: coste de los recursos propios del ${pct(v.W.ke, 2)} (tipo sin riesgo ${pct(A.S.par.rf, 2)} + beta ${num(v.W.beta, 2)} × prima de riesgo ${pct(A.S.par.erp, 2)}) y coste de la deuda del ${pct(v.W.kd, 2)} (rating sintético ${e.rating}), con un ${pct(v.W.wd, 0)} de deuda. Valor terminal por ${A.S.par.metodoVt === 'gordon' ? 'Gordon' : 'inductores de valor'} con g = ${pct(v.g, 2)}: pesa el ${pct(b.pesoTv, 0)} del valor en el caso base.`),
-        G.caja(260, (c) => G.sensibilidad(c, e, v, A.S.par, aj))];
-      sec5 = [h('h2', null, '5. Del valor de la empresa al valor por acción'), G.caja(250, (c) => G.puente(c, e, v))];
-    } else if (ri) {
-      sec3 = [h('h2', null, '3. Rentabilidad y beneficio residual'),
-        P(`Valor contable de ${usd(e.ri.bv0, 2)} por acción y ROE de los últimos doce meses del ${pct(e.ri.roe_ttm, 1)}. Con el BPA del consenso, el ROE es del ${pct(b.filas[0].roe, 1)} el año 1 y del ${pct(b.roe2, 1)} el año 2; después converge al ${pct(b.roeLT, 1)} a largo plazo (caso base). El valor crece mientras el ROE supere al coste de los recursos propios (${pct(v.w, 1)}).`),
-        G.leyenda(series.map(([sc, c]) => [A.NOM_ESC[sc], c]).concat([['Ke', 'var(--color-fg)']])),
-        G.caja(220, (c) => G.lineas(c, series.map(([sc, col]) => ({ n: A.NOM_ESC[sc], color: col, puntos: anios.map((a, k) => [a, v.res[sc].filas[k].roe]) }))
-          .concat([{ n: 'Ke', color: 'var(--color-fg)', discontinua: true, puntos: anios.map((a) => [a, v.w]) }]), { fmtY: (d) => pct(d, 0), fmtTip: (d) => pct(d, 1), prefijo: 'Año ' })),
-        tarjetaProyeccionF2(e, v)];
-      sec4 = [h('h2', null, '4. Coste de los recursos propios y sensibilidad'),
-        P(`Ke del ${pct(v.w, 2)}: tipo sin riesgo ${pct(A.S.par.rf, 2)} + beta ${num(v.W.beta, 2)} × prima de riesgo ${pct(A.S.par.erp, 2)}. En este modelo se descuenta directamente el beneficio del accionista, sin WACC: la deuda de un banco o una aseguradora es parte de su negocio. El valor terminal (beneficio residual del año 11 creciendo a g = ${pct(v.g, 2)}) pesa el ${pct(b.pesoTv, 0)} del valor en el caso base.`),
-        G.caja(260, (c) => G.sensibilidad(c, e, v, A.S.par, aj))];
-      sec5 = [h('h2', null, '5. Del valor contable al valor por acción'),
-        G.caja(240, (c) => G.cascada(c, [{ n: 'Valor contable', v: b.base, tipo: 'suma' }, { n: 'Beneficio residual años 1–10', v: b.va, tipo: 'suma' }, { n: 'Valor terminal', v: b.vaTv, tipo: 'suma' }, { n: 'Valor por acción', v: b.vps, tipo: 'total' }])),
-        P(`Precio / valor contable que justifica el caso base: ${veces(b.vps / e.ri.bv0, 2)}; la cotización está a ${veces(e.cotizacion / e.ri.bv0, 2)}.`)];
-    } else {
-      sec3 = [h('h2', null, '3. FFO, AFFO y dividendo'),
-        P(`FFO de los últimos doce meses de ${usd(e.reit.ffo_ps, 2)} por acción y AFFO estimado de ${usd(e.reit.affo0, 2)} (85 % del FFO). Dividendo de ${usd(e.reit.dps0, 2)} (rentabilidad del ${pct(e.reit.dps0 / e.cotizacion, 1)}), cubierto ${veces(e.reit.cobertura, 2)} por el FFO. En el caso base el AFFO crece un ${pct(e.reit.g1[1] + (aj.dg || 0), 1)} el año 1 y un ${pct(e.reit.g2[1] + (aj.dg || 0), 1)} el año 2 (ingresos del consenso) y converge a g.`),
-        G.leyenda(series.map(([sc, c]) => [A.NOM_ESC[sc], c]).concat([['Dividendo (caso base)', 'var(--color-fg)']])),
-        G.caja(220, (c) => G.lineas(c, series.map(([sc, col]) => ({ n: A.NOM_ESC[sc], color: col, puntos: anios.map((a, k) => [a, v.res[sc].filas[k].affo]) }))
-          .concat([{ n: 'Dividendo', color: 'var(--color-fg)', discontinua: true, puntos: anios.map((a, k) => [a, b.filas[k].dpa]) }]), { fmtY: (d) => num(d, 1), fmtTip: (d) => usd(d, 2), prefijo: 'Año ', cero: true })),
-        tarjetaProyeccionF2(e, v)];
-      sec4 = [h('h2', null, '4. Coste de los recursos propios y sensibilidad'),
-        P(`Ke del ${pct(v.w, 2)}: tipo sin riesgo ${pct(A.S.par.rf, 2)} + beta ${num(v.W.beta, 2)} × prima de riesgo ${pct(A.S.par.erp, 2)}. Valor terminal de Gordon con g = ${pct(v.g, 2)}: pesa el ${pct(b.pesoTv, 0)} del valor en el caso base.`),
-        G.caja(260, (c) => G.sensibilidad(c, e, v, A.S.par, aj))];
-      sec5 = [h('h2', null, '5. Del flujo al valor por acción'),
-        G.caja(240, (c) => G.cascada(c, [{ n: 'AFFO años 1–10', v: b.va, tipo: 'suma' }, { n: 'Valor terminal', v: b.vaTv, tipo: 'suma' }, { n: 'Valor por acción', v: b.vps, tipo: 'total' }])),
-        P(`P/FFO que justifica el caso base: ${veces(b.vps / e.reit.ffo_ps, 1)}; la cotización está a ${veces(e.cotizacion / e.reit.ffo_ps, 1)}.`)];
-    }
-    const lang = A.leer('sp-inf-lang', 'es') === 'ca' ? 'ca' : 'es';
-    const selLang = h('div', { class: 'sv-seg ap-idioma', role: 'group', 'aria-label': 'Idioma del informe' }, [['es', 'Castellano'], ['ca', 'Català']].map(([k, t]) => {
-      const bt = h('button', { type: 'button', 'aria-pressed': String(k === lang), lang: k }, t);
-      bt.addEventListener('click', () => { A.escribir('sp-inf-lang', k); A.programar(); });
-      return bt;
-    }));
-    main.append(h('div', { class: 'ap-inf-bar no-print' }, A.migas([['Mercado', '#/mercado'], [e.nombre, '#/empresa/' + e.ticker], ['Informe']]), h('div', { class: 'ap-tit-b' }, selLang, imprimir)));
-    const doc = h('article', { class: 'ap-inf' },
-      h('header', { class: 'ap-inf-cab' },
-        h('p', { class: 'ap-inf-mini' }, `Informe de valoración · Simulador S&P 500 · datos del ${fecha(est.fecha_mercado || A.D.pa.fecha_cotizacion)}`),
-        h('h1', null, `${e.empresa} (${e.ticker})`),
-        h('p', { class: 'ap-inf-sub' }, `${e.sector} · ${e.industria} · ${e.subindustria} · modelo: ${M.n}`)),
-      h('section', { class: 'ap-inf-res' },
-        h('div', null, h('p', { class: 'ap-inf-l' }, 'Valor central'), h('p', { class: 'ap-inf-n' }, usd(v.central)), h('p', { class: 'ap-inf-l' }, `Rango ${usd(v.bajo)} – ${usd(v.alto)}`)),
-        h('div', null, h('p', { class: 'ap-inf-l' }, 'Cotización'), h('p', { class: 'ap-inf-n' }, usd(e.cotizacion, 2)), h('p', { class: 'ap-inf-l' }, `Capitalización ${mill(e.cap)}`)),
-        h('div', null, h('p', { class: 'ap-inf-l' }, 'Potencial'), h('p', { class: 'ap-inf-n ' + A.clsPot(v.pot) }, pct(v.pot, 0, true)), h('p', { class: 'ap-inf-l' }, ms != null && ms > 0 ? `Margen de seguridad ${pct(ms, 0)}` : 'Sin margen de seguridad')),
-        h('div', null, h('p', { class: 'ap-inf-l' }, 'Conclusión del modelo'), h('p', { class: 'ap-inf-v' }, veredicto), h('p', { class: 'ap-inf-l' }, `Criterios de Graham: ${gr.puntos} de ${gr.total}`))),
-      h('h2', null, '1. Resumen'),
-      P(`${frase(e, v)} ${nomIntr} da ${usd(v.pond)} por acción (pesimista ${usd(v.res.pes.vps)}, base ${usd(b.vps)} y optimista ${usd(v.res.opt.vps)}, con probabilidades del ${pct(A.S.par.prob.pes, 0)}, ${pct(A.S.par.prob.base, 0)} y ${pct(A.S.par.prob.opt, 0)})` +
-        (v.mm != null ? ` y los múltiplos de sus comparables, ${usd(v.mm)}; el valor central pondera un ${pct(v.pesoDcf, 0)} el ${corto} y un ${pct(1 - v.pesoDcf, 0)} los múltiplos.` : `; no hay comparables con múltiplos válidos, así que el valor central es el ${corto}.`)),
-      P(txtImp),
-      cambiado && Vd ? P(`Este informe usa supuestos modificados en el simulador. Con los supuestos por defecto, el valor central sería ${usd(Vd.central)} (${pct(Vd.pot, 0, true)}).`) : null,
-      av.length ? h('div', { class: 'ap-inf-av' }, h('p', null, h('b', null, 'Avisos sobre la fiabilidad: ')), h('ul', null, av.map((a) => h('li', null, (A.AVISOS[a] || { t: a }).t)))) : null,
-      h('h2', null, '2. Valor por método'),
-      G.caja(200, (c) => G.metodos(c, e, v, v.pesoDcf)),
-      sec3, sec4, sec5,
-      h('h2', null, '6. Comparables, Graham y analistas'),
-      tarjetaComparables(e), tarjetaGraham(e), tarjetaAnalistas(e, v),
-      h('h2', null, '7. Datos y supuestos'),
-      fc ? tarjetaSupuestos(e, v) : tarjetaSupuestosF2(e, v),
-      h('p', { class: 'ap-inf-pie' }, e.revisada_activa ? `Valoración revisada empresa a empresa en el Simulador 7M (${M.c}; supuestos de crecimiento, márgenes, inversión y comparables revisados), con el mismo motor que el resto del S&P 500. Herramienta formativa: no es una recomendación de inversión. Datos de Yahoo Finance.`
-        : `Modelo automático con reglas comunes para todas las empresas del S&P 500 (${M.c}; consenso de analistas en los años 1–2, convergencia a largo plazo, CAPM y múltiplos de comparables). Herramienta formativa: no es una recomendación de inversión. Datos de Yahoo Finance.`));
-    main.append(doc);
-    if (lang === 'ca') {
-      doc.lang = 'ca'; doc.style.visibility = 'hidden';
-      A.cargarScript('js/catala.js').then(() => A.catala(doc)).catch(() => {}).finally(() => { doc.style.visibility = ''; });
-    }
-  };
   const scripts = {};
   A.cargarScript = (src) => scripts[src] || (scripts[src] = new Promise((ok, ko) => {
     const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => { delete scripts[src]; ko(new Error('No se pudo cargar ' + src)); }; document.head.append(s);
   }));
+
+  // tarjetas y textos que reutiliza el informe (js/informe.js)
+  A.tj = { frase, tarjetaProyeccion, tarjetaProyeccionF2, tarjetaComparables, tarjetaGraham, tarjetaAnalistas, tarjetaSupuestos, tarjetaSupuestosF2,
+    tarjetaCalidad, tarjetaConsenso, tarjetaDividendo, tarjetaCotizacion, tarjetaHistoria, historicoDe };
 
   // ---------------------------------------------------------------- MÉTODO
   V.metodo = function (main) {
@@ -852,7 +813,7 @@
       li(`Beneficio residual (${n('ri')} empresas).`, 'Bancos, aseguradoras, gestoras, financieras y eléctricas reguladas: su deuda es parte del negocio (depósitos, reservas técnicas) o su rentabilidad está regulada sobre una base de activos, así que se valora directamente el patrimonio por su rentabilidad (ROE) frente a su coste (Ke).'),
       li(`Descuento del AFFO (${n('reit')} REIT).`, 'Sociedades de inversión inmobiliaria: el valor es el del flujo de caja recurrente disponible para el accionista (AFFO), con P/FFO y EV/EBITDA de sus comparables.'))));
     main.append(A.tarjeta('DCF de flujos de caja libres', null, h('ul', { class: 'sv-method' },
-      li('Datos.', 'Lista del S&P 500 con su clasificación GICS (Wikipedia). Estados financieros normalizados de los últimos doce meses y del último balance trimestral, cotizaciones, betas y consenso de analistas de Yahoo Finance. Se actualizan cada lunes.'),
+      li('Datos.', 'Lista del S&P 500 con su clasificación GICS (Wikipedia). Estados financieros normalizados de los últimos doce meses y del último balance trimestral, cotizaciones, betas y consenso de analistas de Yahoo Finance. La actualización completa es cada lunes; además, de lunes a viernes, después del cierre de Wall Street, se actualizan las cotizaciones, el tipo sin riesgo y los múltiplos.'),
       li('Años 1–2.', 'Consenso de ventas y BPA (mínimo, medio y máximo) llevado a doce meses desde el último trimestre publicado. El BPA se convierte en beneficio operativo con la diferencia que había en los últimos doce meses entre el BPA publicado y el beneficio operativo; si el consenso usa un BPA "ajustado" muy distinto del contable, se resta la remuneración en acciones.'),
       li('Años 3–10.', 'El crecimiento converge linealmente al 3,5 % del año 10; el margen converge a un margen de largo plazo que recorre un 30 % de la distancia hasta la mediana de sus comparables (sin moverse más de un 30 % respecto al del año 2). Escenario pesimista: −15 % de margen a largo plazo; optimista: +10 %.'),
       li('EBITA.', 'Se usa el beneficio operativo antes de la amortización de intangibles adquiridos y, en coherencia, la amortización que se suma al flujo es solo la de los activos propios.'),
@@ -883,14 +844,25 @@
       li('Puntuación F de Piotroski.', 'Nueve señales con los dos últimos ejercicios anuales, un punto cada una: rentabilidad sobre activos positiva y creciente, flujo de explotación positivo y mayor que el beneficio, menos deuda a largo plazo sobre activos, más liquidez, sin emitir acciones, más margen bruto y más rotación de activos.'),
       li('Fórmula mágica de Greenblatt.', 'Se ordenan las empresas valoradas por DCF (sin financieras ni eléctricas) por rentabilidad del beneficio (EBIT ÷ valor de la empresa) y por rentabilidad del capital (EBIT ÷ activo fijo neto + NOF); la suma de los dos puestos da la clasificación.'),
       li('Aviso.', 'Es un filtro para encontrar candidatas que estudiar a fondo, no una recomendación de compra: el modelo es automático y no conoce todos los hechos recientes (litigios, cambios de negocio).'))));
-    main.append(A.tarjeta('Seguimiento semanal y avisos', null, h('ul', { class: 'sv-method' },
+    main.append(A.tarjeta('Actualizaciones, seguimiento y avisos', null, h('ul', { class: 'sv-method' },
+      li('Cada lunes.', 'Actualización completa: estados financieros, consenso, comparables, historia de la SEC y todas las valoraciones.'),
+      li('De lunes a viernes.', 'Al cierre de Wall Street se actualizan las cotizaciones, la capitalización, el tipo sin riesgo y los múltiplos (PER, P/VC, EV/EBITDA, rentabilidad por dividendo); el valor de cada empresa se recalcula en la app con esos datos.'),
       li('Estrategias.', `${CRIT.ESTRATEGIAS.map((x) => x.n).join('; ')}. Cada lunes se guardan sus candidatas con los supuestos por defecto.`),
       li('Rentabilidad.', 'La de cada semana es la media, con pesos iguales, de la variación de la cotización de las candidatas de la semana anterior (sin dividendos ni costes), y se compara con el S&P 500 y con la media de todas las empresas valoradas.'),
-      li('Avisos por correo.', 'Al terminar la actualización se abre un aviso (issue) en GitHub con las empresas que entran y salen de cada estrategia y con las empresas seguidas que se mueven más de un 10 %; GitHub lo envía por correo.'))));
+      li('Avisos por correo.', 'Al terminar la actualización del lunes se abre un aviso (issue) en GitHub con las empresas que entran y salen de cada estrategia, las empresas seguidas que se mueven más de un 10 %, tus alertas que se cumplen y los próximos resultados; GitHub lo envía por correo. Cada día laborable, si alguna de tus alertas pasa a cumplirse, llega otro aviso.'),
+      li('Tus alertas.', 'Precio de compra, precio de venta y margen de seguridad mínimo de cada empresa, en «Mi seguimiento» de su ficha. La app las comprueba al abrirla; para recibirlas por correo, copia su configuración (en «Seguimiento › Tus datos») en el fichero pipeline/avisos.json del repositorio.'))));
+    main.append(A.tarjeta('Tu cartera y tus datos', null, h('ul', { class: 'sv-method' },
+      li('Mi cartera.', 'Compras con su precio y fecha; la app calcula el valor (en dólares y en euros), la ganancia, el potencial ponderado por el peso de cada posición con el valor central, los dividendos anuales, la beta y el peso por sector.'),
+      li('Notas.', 'En la ficha de cada empresa puedes escribir tu tesis y tus precios de compra y de venta; aparecen también en el informe.'),
+      li('Privacidad.', 'Todo se guarda solo en el navegador del dispositivo: no se envía a ningún servidor.'),
+      li('Otros dispositivos.', 'Con el enlace o el fichero de «Seguimiento › Tus datos» los abres en el móvil o en otro ordenador, combinándolos con los que haya o sustituyéndolos.'))));
     main.append(A.tarjeta('Más datos', null, h('ul', { class: 'sv-method' },
       li('Historia de 10 años.', 'Ventas, beneficio, BPA, dividendos, patrimonio y flujo de explotación de los formularios 10-K presentados a la SEC (API XBRL "frames", por año natural). BPA y dividendo por acción ajustados por splits.'),
       li('Cotizaciones.', 'Cierres semanales de los últimos 5 años de Yahoo Finance, y el S&P 500 para comparar.'),
+      li('Resultados y consenso.', 'Próxima fecha de resultados, BPA y ventas esperados para el trimestre, sorpresas de los cuatro últimos trimestres y revisiones de la previsión de BPA de los analistas en los últimos 7, 30 y 90 días (Yahoo Finance).'),
+      li('Dividendo.', 'Dividendo anual y fecha ex-dividendo de Yahoo Finance; años seguidos pagándolo y subiéndolo y su crecimiento anual, de la historia de la SEC.'),
       li('Excel.', 'Desde la ficha de cada empresa se puede descargar la valoración en una hoja de cálculo con fórmulas: los supuestos en amarillo, la proyección de los tres escenarios, el valor terminal, los múltiplos y el valor central.'),
+      li('Informe en PDF.', 'El botón «Informe PDF» de la ficha descarga el informe completo de la empresa, en castellano o en catalán: portada con las cifras clave, resumen con puntos fuertes y riesgos, catalizadores, análisis financiero de 10 años, valoración (WACC, escenarios, sensibilidad, lo que descuenta la cotización, múltiplos y puente hasta el valor por acción), comparables, inversión en valor y calidad, conclusiones y fuentes. Se genera en el propio navegador con los supuestos que tengas en el simulador.'),
       li('Glosario.', h('a', { href: '#/glosario' }, 'Todos los términos explicados ›')))));
     if (Object.keys(R).length) main.append(A.tarjeta('Empresas sin valorar', 'Componentes del índice que no se valoran esta semana.',
       h('ul', { class: 'sv-method' }, Object.entries(R).map(([m, n]) => h('li', null, `${m}: ${n}`)))));

@@ -279,7 +279,7 @@ window.APP = (function () {
       b.addEventListener('click', () => A.cargarEscenario(x.n));
       const del = A.h('button', { type: 'button', class: 'ap-esc-x', 'aria-label': `Borrar el escenario ${x.n}` }, '✕');
       del.addEventListener('click', () => { A.borrarEscenario(x.n); pintarEscenarios(); });
-      return A.h('span', { class: 'ap-esc' }, b, del);
+      return A.h('span', { class: 'ap-escn' }, b, del);
     }) : [A.h('span', { class: 'sv-ctrl-d' }, 'Todavía no has guardado ninguno. Se guardan en este navegador.')]));
   }
   A.sincronizarControles = function () {
@@ -334,9 +334,11 @@ window.APP = (function () {
   };
   A.pintarNav = function (vista) {
     vista = vista || A.ruta().vista;
-    const sec = ['sector', 'industria', 'empresa', 'informe'].includes(vista) ? 'mercado' : vista === 'glosario' ? 'metodo' : vista;
+    const sec = ['sector', 'industria', 'empresa', 'informe'].includes(vista) ? 'mercado' : vista === 'glosario' ? 'metodo' : vista === 'importar' ? 'seguimiento' : vista;
     for (const a of document.querySelectorAll('.ap-nav a')) a.setAttribute('aria-current', a.dataset.sec === sec ? 'page' : 'false');
     const n = $('#ap-cmp-n'); n.hidden = !A.S.cmp.length; n.textContent = A.S.cmp.length;
+    const al = $('#ap-al-n');
+    if (al && A.alertasCumplidas) { const k = A.alertasCumplidas().length; al.hidden = !k; al.textContent = k; al.title = `${k} ${k === 1 ? 'alerta se cumple' : 'alertas se cumplen'}`; }
   };
   // migas: [['Mercado', '#/mercado'], ['Tecnología', '#/sector/..'], ['Apple']]
   A.migas = (items) => A.h('nav', { class: 'ap-migas', 'aria-label': 'Ruta' },
@@ -404,7 +406,7 @@ window.APP = (function () {
     let orden = opts.orden || null, desc = opts.desc != null ? opts.desc : true;
     const tb = A.h('tbody');
     const ths = cols.map((c, i) => {
-      const th = A.h('th', { scope: 'col', class: c.cls || null, title: c.ayuda || null });
+      const th = A.h('th', { scope: 'col', class: [c.cls, c.texto ? 'ap-txt' : null].filter(Boolean).join(' ') || null, title: c.ayuda || null });
       if (c.v) {
         const b = A.h('button', { type: 'button', class: 'ap-th-b' }, c.t);
         b.addEventListener('click', () => { if (orden === i) desc = !desc; else { orden = i; desc = c.texto ? false : true; } pintarCuerpo(); });
@@ -431,7 +433,7 @@ window.APP = (function () {
         const tr = A.h('tr', opts.clic ? { tabindex: '0' } : null);
         for (const c of cols) {
           const x = c.f ? c.f(f) : c.v(f);
-          tr.append(A.h('td', { class: c.cls || null }, x instanceof Node ? x : x == null ? '—' : String(x)));
+          tr.append(A.h('td', { class: [c.cls, c.texto ? 'ap-txt' : null].filter(Boolean).join(' ') || null }, x instanceof Node ? x : x == null ? '—' : String(x)));
         }
         if (opts.clic) {
           tr.addEventListener('click', () => opts.clic(f));

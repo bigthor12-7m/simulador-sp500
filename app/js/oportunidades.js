@@ -9,7 +9,9 @@
     { id: 'alto', t: 'Valor alto', d: 'Escenario optimista con el mayor de los múltiplos: la referencia menos exigente.', f: (v) => v.alto },
   ];
   const CAPS = [[0, 'Todas'], [10000, 'Más de 10.000 M$'], [50000, 'Más de 50.000 M$'], [200000, 'Más de 200.000 M$']];
-  const DEF = () => ({ ref: 'central', ms: 0.25, sinMs: false, sectores: [], fiables: true, crit: [], minG: 0, cap: 0, minF: 0, topG: 0 });
+  const DEF = () => ({ ref: 'central', ms: 0.25, sinMs: false, sectores: [], fiables: true, crit: [], minG: 0, cap: 0, minF: 0, topG: 0, minDiv: 0, subeDiv: 0 });
+  const DIVS = [[0, 'Sin exigir'], [0.01, 'Al menos un 1 %'], [0.02, 'Al menos un 2 %'], [0.03, 'Al menos un 3 %'], [0.04, 'Al menos un 4 %']];
+  const SUBES = [[0, 'Sin exigir'], [5, '5 años o más'], [8, '8 años o más'], [10, '10 años (todos los de la SEC)']];
   const TOPS = [[0, 'Sin exigir'], [30, 'Entre las 30 primeras'], [50, 'Entre las 50 primeras'], [100, 'Entre las 100 primeras']];
   const PRESETS = [
     ['Graham clásico', { ref: 'bajo', ms: 0.33, crit: ['per', 'pb', 'ben', 'div'], minG: 0 }],
@@ -18,6 +20,7 @@
     ['Prudente: margen sobre el escenario pesimista', { ref: 'pes', ms: 0.15, crit: [], minG: 0 }],
     ['Fórmula mágica de Greenblatt (30 primeras)', { sinMs: true, topG: 30, fiables: false }],
     ['Piotroski 8–9 bajo su valor', { ref: 'central', ms: 0, minF: 8 }],
+    ['Dividendo creciente 10 años bajo su valor', { ref: 'central', ms: 0, subeDiv: 10, minDiv: 0.015 }],
   ];
   function estado() {
     if (!A.S.op) {
@@ -46,7 +49,9 @@
       const pf = e.piotroski ? e.piotroski.f : null, gb = e.greenblatt ? e.greenblatt.pos : null;
       const okF = !op.minF || (pf != null && pf >= op.minF && e.piotroski.n >= 8);
       const okG = !op.topG || (gb != null && gb <= op.topG);
-      out.push({ e, v, valor, ms, gr, pf, gb, pasa: (op.sinMs || (ms != null && ms >= op.ms)) && okCrit && gr.puntos >= op.minG && okF && okG });
+      const dv = e.dividendo || {};
+      const okD = (!op.minDiv || (dv.rent || 0) >= op.minDiv) && (!op.subeDiv || (dv.sube || 0) >= op.subeDiv);
+      out.push({ e, v, valor, ms, gr, pf, gb, pasa: (op.sinMs || (ms != null && ms >= op.ms)) && okCrit && gr.puntos >= op.minG && okF && okG && okD });
     }
     return out;
   }
@@ -56,7 +61,9 @@
     const todas = candidatas(op), sel = todas.filter((x) => x.pasa).sort(op.sinMs && op.topG ? (a, b) => a.gb - b.gb : (a, b) => b.ms - a.ms);
     const ref = REFS.find((r) => r.id === op.ref) || REFS[2];
     const extras = [op.crit.length || op.minG ? 'los criterios de Graham elegidos' : null, op.minF ? `una puntuación F de Piotroski de al menos ${op.minF}` : null,
-      op.topG ? `un puesto entre los ${op.topG} primeros de la fórmula mágica` : null].filter(Boolean);
+      op.topG ? `un puesto entre los ${op.topG} primeros de la fórmula mágica` : null,
+      op.minDiv ? `una rentabilidad por dividendo de al menos el ${pct(op.minDiv, 1)}` : null,
+      op.subeDiv ? `${op.subeDiv} años o más subiendo el dividendo` : null].filter(Boolean);
     main.append(h('header', { class: 'sv-head' },
       h('h1', { class: 'sv-h1' }, 'Oportunidades de inversión en valor'),
       h('p', { class: 'sv-take' }, (op.sinMs ? `${sel.length} ${sel.length === 1 ? 'empresa cumple' : 'empresas cumplen'} ` + (extras.length ? extras.join(', ') : 'los filtros')
@@ -103,6 +110,10 @@
     minF.addEventListener('input', () => { const x = A.$('#op-minf-v'); if (x) x.textContent = Number(minF.value) ? `${minF.value} de 9` : 'sin exigir'; });
     const topG = h('select', { id: 'op-topg', class: 'ap-sel' }, TOPS.map(([x, t]) => { const o = h('option', { value: x }, t); if (x === (op.topG || 0)) o.selected = true; return o; }));
     topG.addEventListener('change', () => cambiar((o) => { o.topG = Number(topG.value); }));
+    const selDiv = h('select', { id: 'op-div', class: 'ap-sel' }, DIVS.map(([x, t]) => { const o = h('option', { value: x }, t); if (x === (op.minDiv || 0)) o.selected = true; return o; }));
+    selDiv.addEventListener('change', () => cambiar((o) => { o.minDiv = Number(selDiv.value); }));
+    const selSube = h('select', { id: 'op-sube', class: 'ap-sel' }, SUBES.map(([x, t]) => { const o = h('option', { value: x }, t); if (x === (op.subeDiv || 0)) o.selected = true; return o; }));
+    selSube.addEventListener('change', () => cambiar((o) => { o.subeDiv = Number(selSube.value); }));
     const fia = h('input', { type: 'checkbox', id: 'op-fia' }); fia.checked = op.fiables;
     fia.addEventListener('change', () => cambiar((o) => { o.fiables = fia.checked; }));
     const cap = h('select', { id: 'op-cap', class: 'ap-sel' }, CAPS.map(([x, t]) => { const o = h('option', { value: x }, t); if (x === op.cap) o.selected = true; return o; }));
@@ -128,6 +139,10 @@
             h('span', { class: 'sv-ctrl-d' }, 'Nueve señales de solidez y mejora del último ejercicio. Se exigen al menos 8 señales con datos.')),
           h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-topg' }, ['Fórmula mágica de Greenblatt ', A.ayuda('greenblatt')])), topG,
             h('span', { class: 'sv-ctrl-d' }, 'Puesto por rentabilidad del beneficio (EBIT ÷ valor de la empresa) y del capital. Sin financieras, eléctricas ni REIT.'))),
+        h('div', { class: 'sv-grp' }, h('p', { class: 'sv-grp-t' }, 'Dividendo'),
+          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-div' }, 'Rentabilidad por dividendo')), selDiv),
+          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-sube' }, 'Años seguidos subiendo el dividendo')), selSube,
+            h('span', { class: 'sv-ctrl-d' }, 'Según los 10-K de la SEC (hasta 10 años; aproximado).'))),
         h('div', { class: 'sv-grp' }, h('p', { class: 'sv-grp-t' }, 'Universo'), h('div', { class: 'sv-chips' }, chipsSec), todosSec,
           h('label', { class: 'ap-op-c', for: 'op-cap' }, 'Capitalización ', cap),
           h('label', { class: 'ap-op-c', for: 'op-fia' }, fia, ' Solo valoraciones fiables (sin avisos graves)'))),
@@ -166,7 +181,8 @@
       { t: 'Valor central', v: (x) => x.v.central, f: (x) => usd(x.v.central), cls: 'sv-sec-col' },
       { t: 'PER TTM', v: (x) => (x.e.graham || {}).per, f: (x) => veces((x.e.graham || {}).per) },
       { t: 'P/VC', v: (x) => (x.e.graham || {}).pb, f: (x) => veces((x.e.graham || {}).pb), cls: 'sv-sec-col' },
-      { t: 'Dividendo', v: (x) => (x.e.graham || {}).div, f: (x) => pct((x.e.graham || {}).div, 1), cls: 'sv-sec-col' },
+      { t: 'Dividendo', v: (x) => (x.e.dividendo || {}).rent, f: (x) => pct((x.e.dividendo || {}).rent, 1), cls: 'sv-sec-col' },
+      { t: 'Sube div.', v: (x) => (x.e.dividendo || {}).sube, f: (x) => { const k = (x.e.dividendo || {}).sube; return k ? `${k} años` : '—'; }, cls: 'sv-sec-col', ayuda: 'Años seguidos subiendo el dividendo por acción (SEC)' },
       { t: 'Graham', v: (x) => x.gr.puntos, f: (x) => `${x.gr.puntos}/${x.gr.total}` },
       { t: 'Piotroski', v: (x) => x.pf, f: (x) => (x.pf == null ? '—' : `${x.pf}/9`), ayuda: 'Puntuación F de Piotroski (0 a 9)' },
       { t: 'Greenblatt', v: (x) => (x.gb == null ? null : -x.gb), f: (x) => (x.gb == null ? '—' : `${x.gb}.º`), cls: 'sv-sec-col', ayuda: 'Puesto en la fórmula mágica de Greenblatt (1 = mejor)' },
@@ -174,16 +190,16 @@
     ];
     const porGb = op.sinMs && op.topG;
     main.append(A.tarjeta(`Candidatas (${sel.length})`, sel.length ? `Ordenadas por ${porGb ? 'puesto en la fórmula mágica' : 'margen de seguridad'}. Pulsa una fila para ver la valoración completa y su informe.` : 'Ninguna empresa cumple todos los filtros: prueba con un margen de seguridad menor u otro valor de referencia.',
-      sel.length ? A.tabla(cols, sel, { orden: porGb ? 11 : 4, clic: (x) => A.ir('#/empresa/' + x.e.ticker) }) : null,
+      sel.length ? A.tabla(cols, sel, { orden: porGb ? 12 : 4, clic: (x) => A.ir('#/empresa/' + x.e.ticker) }) : null,
       sel.length ? h('div', { class: 'sv-bar' }, h('span', { class: 'sv-bar-l' }, `Supuestos generales actuales: rf ${pct(A.S.par.rf, 2)} · prima de riesgo ${pct(A.S.par.erp, 2)} · g ${pct(A.S.par.g, 2)}`), exportar) : null));
   };
 
   function descargarCsv(sel, ref) {
-    const cab = ['Ticker', 'Empresa', 'Sector', 'Industria', 'Cotización', ref.t, 'Margen de seguridad', 'Valor central', 'Potencial', 'PER TTM', 'P/VC', 'Número de Graham', 'Criterios Graham', 'Rentabilidad dividendo', 'Piotroski F', 'Puesto Greenblatt'];
+    const cab = ['Ticker', 'Empresa', 'Sector', 'Industria', 'Cotización', ref.t, 'Margen de seguridad', 'Valor central', 'Potencial', 'PER TTM', 'P/VC', 'Número de Graham', 'Criterios Graham', 'Rentabilidad dividendo', 'Piotroski F', 'Puesto Greenblatt', 'Años subiendo el dividendo'];
     const n = (x, d = 2) => (x == null || !isFinite(x) ? '' : String(Math.round(x * 10 ** d) / 10 ** d).replace('.', ','));
     const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
     const filas = sel.map((x) => [x.e.ticker, q(x.e.empresa), q(x.e.sector), q(x.e.industria), n(x.e.cotizacion), n(x.valor), n(x.ms, 4), n(x.v.central), n(x.v.pot, 4),
-      n((x.e.graham || {}).per), n((x.e.graham || {}).pb), n((x.e.graham || {}).ng), x.gr.puntos, n((x.e.graham || {}).div, 4), x.pf == null ? '' : x.pf, x.gb == null ? '' : x.gb].join(';'));
+      n((x.e.graham || {}).per), n((x.e.graham || {}).pb), n((x.e.graham || {}).ng), x.gr.puntos, n((x.e.graham || {}).div, 4), x.pf == null ? '' : x.pf, x.gb == null ? '' : x.gb, (x.e.dividendo || {}).sube || 0].join(';'));
     const blob = new Blob(['﻿' + cab.join(';') + '\n' + filas.join('\n')], { type: 'text/csv;charset=utf-8' });
     const a = h('a', { href: URL.createObjectURL(blob), download: `oportunidades-sp500-${(A.D.estado || {}).fecha_mercado || 'hoy'}.csv` });
     document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);

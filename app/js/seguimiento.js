@@ -93,25 +93,26 @@
         { t: '', f: quitar },
       ], lista, { clic: (e) => A.ir('#/empresa/' + e.ticker) }) : h('p', { class: 'sv-card-n' }, 'Todavía no sigues ninguna empresa.')));
 
-    const conf = S.avisos || { seguir: [], umbral: 0.1 };
-    const mia = A.S.seg.slice().sort(), suya = (conf.seguir || []).slice().sort();
-    const igual = mia.length && mia.join(',') === suya.join(',');
-    const json = JSON.stringify({ seguir: A.S.seg, umbral: conf.umbral || 0.1, estrategias: conf.estrategias || CRIT.ESTRATEGIAS.map((x) => x.id) }, null, 2);
-    const copiar = h('button', { type: 'button', class: 'sv-btn' }, 'Copiar tu lista para los avisos');
-    const ok = h('span', { class: 'sv-ctrl-d', role: 'status' });
-    copiar.addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(json); ok.textContent = 'Copiada. Pégala en el fichero de avisos y guarda el cambio (Commit changes).'; }
-      catch (e) { ok.textContent = 'No se ha podido copiar: selecciona el texto de abajo.'; pre.hidden = false; }
-    });
-    const pre = h('pre', { class: 'ap-pre', hidden: true }, json);
-    cont.append(A.tarjeta('Avisos por correo', null,
-      h('p', { class: 'sv-card-n' }, `Cada lunes, al terminar la actualización, se abre un aviso (issue) en el repositorio de GitHub con las empresas que entran y salen de cada estrategia y con las empresas que sigues, resaltando las que se mueven más de un ${pct(conf.umbral || 0.1, 0)} (cotización o valor central). GitHub te lo envía por correo.`),
-      h('dl', { class: 'ap-dl' },
-        h('dt', null, 'Empresas en los avisos'), h('dd', null, suya.length ? suya.join(', ') : 'ninguna'),
-        h('dt', null, 'Tu lista en este navegador'), h('dd', null, mia.length ? mia.join(', ') + (igual ? ' (coincide)' : '') : 'vacía')),
-      h('div', { class: 'sv-bar' }, copiar, h('a', { class: 'sv-btn', href: `${REPO}/edit/main/pipeline/avisos.json`, target: '_blank', rel: 'noopener' }, 'Editar el fichero de avisos en GitHub ›'),
-        h('a', { class: 'sv-btn', href: `${REPO}/issues`, target: '_blank', rel: 'noopener' }, 'Ver los avisos ›')),
-      ok, pre,
-      h('p', { class: 'sv-kpi-r' }, 'Si no te llegan, revisa en GitHub › Settings › Notifications que las notificaciones por correo estén activadas.')));
+    // mis alertas
+    const conNota = Object.keys(A.P.notas).filter((t) => A.D.porT[t] && A.alertasDe(t).length);
+    if (conNota.length) {
+      const filas = conNota.map((t) => ({ e: A.D.porT[t], al: A.alertasDe(t) })).sort((a, b) => (b.al.some((x) => x.ok) ? 1 : 0) - (a.al.some((x) => x.ok) ? 1 : 0));
+      const nc = filas.filter((x) => x.al.some((a) => a.ok)).length;
+      cont.append(A.tarjeta([`Mis alertas (${nc} ${nc === 1 ? 'se cumple' : 'se cumplen'}) `, A.ayuda('alertas')], 'Precios y margen mínimo que has puesto en «Mi seguimiento» de cada empresa, con los supuestos actuales del simulador. Los avisos por correo usan los supuestos por defecto.',
+        A.tabla([
+          { t: 'Empresa', v: (x) => x.e.nombre, f: (x) => h('span', { class: 'ap-emp' }, h('b', null, x.e.nombre), ' ', h('span', { class: 'ap-tk' }, x.e.ticker)), texto: true },
+          { t: 'Cotización', v: (x) => x.e.cotizacion, f: (x) => usd(x.e.cotizacion, 2) },
+          { t: 'Alertas', f: (x) => h('span', null, x.al.map((a, i) => [i ? ' · ' : '', h('span', { class: a.ok ? 'ap-al-ok' : 'ap-gris' }, `${a.ok ? '✓ ' : ''}${a.txt} (ahora ${a.ahora})`)])), texto: true },
+          { t: 'Mi tesis', f: (x) => { const t = (A.nota(x.e.ticker).tesis || ''); return t.length > 80 ? t.slice(0, 78) + '…' : t || '—'; }, cls: 'sv-sec-col', texto: true },
+        ], filas, { clic: (x) => A.ir('#/empresa/' + x.e.ticker) })));
+    }
+    // próximos resultados
+    const propias = A.S.seg.concat(A.P.cartera.map((x) => x.t), Object.keys(A.P.notas));
+    const todas = A.leer('sp-agenda-todas', false);
+    const sel = h('label', { class: 'ap-op-c', for: 'ag-todas' }, (() => { const i = h('input', { type: 'checkbox', id: 'ag-todas' }); i.checked = !!todas; i.addEventListener('change', () => { A.escribir('sp-agenda-todas', i.checked); A.programar(); }); return i; })(), ' Ver todo el S&P 500 (próximos 14 días)');
+    cont.append(A.tarjeta('Próximos resultados', todas ? 'Todas las empresas del índice que presentan resultados en los próximos 14 días.' : 'Empresas que sigues, tienes en cartera o con notas. BPA esperado del trimestre, revisiones de los analistas y sorpresa del último trimestre.',
+      sel, A.agenda(todas ? A.D.emp.map((e) => e.ticker) : propias, todas ? { dias: 14 } : { vacio: 'Sigue empresas o añádelas a tu cartera para ver aquí sus próximos resultados.' })));
+    cont.append(A.tarjetaTusDatos(S.avisos));
+    cont.append(h('p', { class: 'sv-kpi-r' }, 'Si no te llegan los avisos, revisa en GitHub › Settings › Notifications que las notificaciones por correo estén activadas.'));
   }
 })(window.APP);

@@ -1,9 +1,10 @@
 // Simulador S&P 500 · funcionamiento sin conexión.
-// La app (HTML, código, fuentes, iconos) se guarda al instalarla; los datos se piden siempre a la red primero
-// (para recibir la actualización semanal) y, sin conexión, se usan los últimos guardados.
-const VERSION = 'sp500-1.2.0';
-const APP = ['./', 'index.html', 'app.css', 'motor.js', 'js/criterios.js', 'js/base.js', 'js/graficos.js', 'js/vistas.js', 'js/oportunidades.js',
-  'js/seguimiento.js', 'js/glosario.js', 'js/excel.js', 'js/catala.js', 'js/arranque.js',
+// La app (HTML, código, fuentes, iconos) se guarda al instalarla; lo que se carga solo al pedirlo (el generador de PDF
+// y sus fuentes) se guarda la primera vez que se usa. Los datos se piden siempre a la red primero (para recibir las
+// actualizaciones) y, sin conexión, se usan los últimos guardados.
+const VERSION = 'sp500-1.3.0';
+const APP = ['./', 'index.html', 'app.css', 'motor.js', 'js/criterios.js', 'js/base.js', 'js/graficos.js', 'js/vistas.js', 'js/informe.js', 'js/oportunidades.js',
+  'js/personal.js', 'js/seguimiento.js', 'js/glosario.js', 'js/excel.js', 'js/catala.js', 'js/pdf.js', 'js/arranque.js',
   'vendor/d3.min.js', 'manifest.webmanifest',
   'fuentes/Inter-Regular.woff', 'fuentes/Inter-Medium.woff', 'fuentes/Inter-SemiBold.woff', 'fuentes/Lora-Regular.woff', 'fuentes/Lora-SemiBold.woff',
   'iconos/icono-192.png', 'iconos/icono-512.png', 'iconos/favicon-32.png', 'iconos/favicon-64.png', 'iconos/apple-touch-icon.png'];
@@ -29,5 +30,8 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((r) => r || fetch(e.request)));
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then((r) => r || fetch(e.request).then((res) => {
+    if (res.ok && url.pathname.includes('/vendor/pdf/')) { const copia = res.clone(); caches.open(VERSION).then((c) => c.put(e.request, copia)); }
+    return res;
+  })));
 });

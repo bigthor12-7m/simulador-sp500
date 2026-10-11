@@ -1,0 +1,3 @@
+jsPDF 3.0.4 (https://github.com/parallax/jsPDF) · MIT License · Copyright (c) 2010-2025 James Hall y colaboradores.
+jsPDF-AutoTable 3.8.4 (https://github.com/simonbengtsson/jsPDF-AutoTable) · MIT License · Copyright (c) 2024 Simon Bengtsson.
+Inter y Lora (las mismas fuentes de la app, en formato TTF para el PDF) · SIL Open Font License 1.1.

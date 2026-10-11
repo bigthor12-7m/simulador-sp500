@@ -246,6 +246,141 @@
     ['Criterios de Graham', 'Criteris de Graham'], ['Calidad: Piotroski y Greenblatt', 'Qualitat: Piotroski i Greenblatt'],
   ].sort((a, b) => b[0].length - a[0].length);
 
+  // ---------------------------------------------------------------- informe 1.3: diagnòstic, anàlisi financera, consens, dividend, qualitat, conclusions i fonts
+  Object.assign(NOM, {
+    '2. Próximos catalizadores y consenso': '2. Propers catalitzadors i consens', '3. Análisis financiero': '3. Anàlisi financera', '4. Valoración': '4. Valoració',
+    '5. Comparables y múltiplos': '5. Comparables i múltiples', '6. Inversión en valor y calidad': '6. Inversió en valor i qualitat',
+    '7. Cotización y consenso de los analistas': '7. Cotització i consens dels analistes', '8. Datos y supuestos': '8. Dades i supòsits',
+    '9. Conclusiones: qué vigilar': '9. Conclusions: què cal vigilar', '10. Fuentes y método': '10. Fonts i mètode',
+    'Puntos fuertes': 'Punts forts', 'Riesgos': 'Riscos', 'Ninguno destacable con los datos disponibles.': 'Res destacable amb les dades disponibles.',
+    'Valor por método': 'Valor per mètode', 'Proyección y flujos de caja': 'Projecció i fluxos de caixa', 'Coste del capital y sensibilidad': 'Cost del capital i sensibilitat',
+    'Coste de los recursos propios y sensibilidad': 'Cost dels recursos propis i sensibilitat', 'Del valor de la empresa al valor por acción': "Del valor de l'empresa al valor per acció",
+    'Rentabilidad y beneficio residual': 'Rendibilitat i benefici residual', 'Del valor contable al valor por acción': 'Del valor comptable al valor per acció',
+    'FFO, AFFO y dividendo': 'FFO, AFFO i dividend', 'Del flujo al valor por acción': 'Del flux al valor per acció',
+    'Caja neta: no tiene deuda financiera neta.': 'Caixa neta: no té deute financer net.',
+    // anàlisi financera i ràtios
+    'Sin historia de la SEC para esta empresa: el análisis usa las cifras de los últimos doce meses.': "Sense història de la SEC per a aquesta empresa: l'anàlisi fa servir les xifres dels últims dotze mesos.",
+    'Crecimiento de las ventas': 'Creixement de les vendes', 'Resultado de explotación (EBIT)': "Resultat d'explotació (EBIT)", 'Margen de explotación': "Marge d'explotació",
+    'Beneficio neto': 'Benefici net', 'Margen neto': 'Marge net', 'Dividendo por acción ($)': 'Dividend per acció ($)', 'Flujo de explotación': "Flux d'explotació",
+    'Conversión en caja (flujo ÷ beneficio)': 'Conversió en caixa (flux ÷ benefici)', 'Patrimonio neto': 'Patrimoni net', 'ROE (beneficio ÷ patrimonio)': 'ROE (benefici ÷ patrimoni)',
+    'miles de M$': 'milers de M$', 'Márgenes': 'Marges', 'Ratios y su lectura': 'Ràtios i la seva lectura', 'Ratio': 'Ràtio', 'Lectura': 'Lectura',
+    'Margen EBITA (últimos doce meses)': 'Marge EBITA (últims dotze mesos)', 'Muy alto: fuerte poder de fijación de precios o ventaja competitiva.': 'Molt alt: fort poder de fixació de preus o avantatge competitiu.',
+    'Alto.': 'Alt.', 'Intermedio.': 'Intermedi.', 'Bajo: poco margen ante una caída de ventas.': "Baix: poc marge davant d'una caiguda de les vendes.",
+    'Negativo: pierde dinero en la explotación.': "Negatiu: perd diners en l'explotació.", 'ROIC (NOPAT ÷ capital invertido)': 'ROIC (NOPAT ÷ capital invertit)',
+    'ROE (últimos doce meses)': 'ROE (últims dotze mesos)', 'Holgada.': 'Folgada.', 'Justa.': 'Justa.', 'El dividendo supera al FFO.': "El dividend supera l'FFO.",
+    'Deuda neta ÷ EBITDA': 'Deute net ÷ EBITDA', 'Más caja que deuda financiera.': 'Més caixa que deute financer.', 'Endeudamiento bajo.': 'Endeutament baix.',
+    'Endeudamiento moderado.': 'Endeutament moderat.', 'Endeudamiento alto.': 'Endeutament alt.',
+    'Liquidez (activo corriente ÷ pasivo corriente)': 'Liquiditat (actiu corrent ÷ passiu corrent)', 'Holgada (criterio de Graham).': 'Folgada (criteri de Graham).',
+    'Suficiente.': 'Suficient.', 'Ajustada: el pasivo corriente supera al activo corriente.': "Ajustada: el passiu corrent supera l'actiu corrent.", 'Ajustada.': 'Ajustada.',
+    'Cobertura de intereses (EBIT ÷ gastos financieros)': "Cobertura d'interessos (EBIT ÷ despeses financeres)",
+    'El beneficio se convierte en caja: buena calidad del beneficio.': 'El benefici es converteix en caixa: bona qualitat del benefici.', 'Aceptable.': 'Acceptable.',
+    'Baja: conviene revisar la calidad del beneficio.': 'Baixa: convé revisar la qualitat del benefici.', 'PER (últimos doce meses)': 'PER (últims dotze mesos)',
+    'Barato según Graham (≤ 15).': 'Barat segons Graham (≤ 15).', 'Exigente: el precio descuenta crecimiento.': 'Exigent: el preu descompta creixement.',
+    'Rentabilidad por dividendo': 'Rendibilitat per dividend', 'Puntuación F de Piotroski': 'Puntuació F de Piotroski', 'Sólida y mejorando.': 'Sòlida i millorant.',
+    'Intermedia.': 'Intermèdia.', 'Débil.': 'Feble.',
+    'Por debajo del PER actual: los analistas esperan más beneficio.': "Per sota del PER actual: els analistes esperen més benefici.",
+    'Por encima del PER actual: los analistas esperan menos beneficio.': "Per sobre del PER actual: els analistes esperen menys benefici.",
+    // resultats i consens
+    'Resultados y consenso': 'Resultats i consens',
+    'Previsiones de los analistas según Yahoo Finance: si suben, el mercado suele premiarlo; si bajan, conviene revisar la tesis.': 'Previsions dels analistes segons Yahoo Finance: si pugen, el mercat sol premiar-ho; si baixen, convé revisar la tesi.',
+    'Próximos resultados': 'Propers resultats', 'sin fecha': 'sense data', 'BPA esperado del trimestre': 'BPA esperat del trimestre',
+    'BPA esperado del ejercicio siguiente': "BPA esperat de l'exercici següent", 'Analistas en los últimos 30 días': 'Analistes en els últims 30 dies',
+    'Valor central del modelo en 4 semanas': 'Valor central del model en 4 setmanes', 'Evolución del BPA esperado (ejercicio en curso y siguiente)': "Evolució del BPA esperat (exercici en curs i següent)",
+    'Ejercicio en curso': 'Exercici en curs', 'Siguiente': 'Següent', 'Hoy': 'Avui', 'Trimestre': 'Trimestre', 'BPA publicado': 'BPA publicat', 'Esperado': 'Esperat', 'Sorpresa': 'Sorpresa',
+    // dividend
+    'Dividendo anual actual (Yahoo Finance) e historia de los formularios 10-K de la SEC. Los años seguidos subiéndolo son aproximados: dependen de cómo declare cada empresa el dividendo por acción.':
+      "Dividend anual actual (Yahoo Finance) i història dels formularis 10-K de la SEC. Els anys seguits apujant-lo són aproximats: depenen de com declari cada empresa el dividend per acció.",
+    'de rentabilidad': 'de rendibilitat', 'Parte del beneficio que reparte (payout)': 'Part del benefici que reparteix (payout)', 'Última fecha ex-dividendo': 'Última data ex-dividend',
+    'Años seguidos pagándolo (SEC)': 'Anys seguits pagant-lo (SEC)', 'Años seguidos subiéndolo (SEC)': 'Anys seguits apujant-lo (SEC)',
+    // qualitat
+    'Rentabilidad sobre activos positiva': 'Rendibilitat sobre actius positiva', 'Flujo de caja de explotación positivo': "Flux de caixa d'explotació positiu",
+    'La rentabilidad sobre activos mejora': 'La rendibilitat sobre actius millora', 'El flujo de explotación supera al beneficio (calidad del beneficio)': "El flux d'explotació supera el benefici (qualitat del benefici)",
+    'La deuda a largo plazo sobre activos no aumenta': 'El deute a llarg termini sobre actius no augmenta', 'La liquidez (activo / pasivo corriente) mejora': 'La liquiditat (actiu / passiu corrent) millora',
+    'No emite acciones nuevas': 'No emet accions noves', 'El margen bruto mejora': 'El marge brut millora', 'La rotación de activos (ventas / activos) mejora': "La rotació d'actius (vendes / actius) millora",
+    'sin datos': 'sense dades', '(sin datos)': '(sense dades)', 'Sin dos ejercicios anuales completos para calcularla.': 'Sense dos exercicis anuals complets per calcular-la.',
+    // cotització
+    'Cotización y valor central': 'Cotització i valor central',
+    'Cierre semanal de los últimos años frente al S&P 500 llevado a la misma base; puntos azules: valor central de cada actualización semanal; línea discontinua azul: valor central con los supuestos actuales.':
+      "Tancament setmanal dels últims anys davant de l'S&P 500 portat a la mateixa base; punts blaus: valor central de cada actualització setmanal; línia discontínua blava: valor central amb els supòsits actuals.",
+    'S&P 500 (misma base)': "S&P 500 (mateixa base)", 'Valor central semanal': 'Valor central setmanal', 'Sin cotizaciones históricas disponibles.': 'Sense cotitzacions històriques disponibles.',
+    'No se han podido cargar las cotizaciones.': "No s'han pogut carregar les cotitzacions.",
+    // fonts
+    'Historia de 10 años: formularios 10-K presentados a la SEC (EDGAR, API XBRL «frames»), por año natural; BPA y dividendo por acción ajustados por splits.':
+      'Història de 10 anys: formularis 10-K presentats a la SEC (EDGAR, API XBRL «frames»), per any natural; BPA i dividend per acció ajustats per splits.',
+    'Lista del S&P 500 y clasificación sectorial GICS: Wikipedia (List of S&P 500 companies).': "Llista de l'S&P 500 i classificació sectorial GICS: Wikipedia (List of S&P 500 companies).",
+    'Supuestos de crecimiento, márgenes, inversión, beta y comparables revisados en el Simulador 7M.': 'Supòsits de creixement, marges, inversió, beta i comparables revisats al Simulador 7M.',
+    'Criterios de Graham que no cumple:': 'Criteris de Graham que no compleix:',
+  });
+  FR.push(
+    // diagnòstic
+    ['Rentabilidad sobre el capital invertido (ROIC) del ', 'Rendibilitat sobre el capital invertit (ROIC) del '], [', por encima de su coste (WACC del ', ', per sobre del seu cost (WACC del '],
+    [', por debajo de su coste (WACC del ', ', per sota del seu cost (WACC del '], ['): el negocio crea valor.', '): el negoci crea valor.'],
+    ['ROE de los últimos doce meses del ', 'ROE dels últims dotze mesos del '], [' frente a un coste de los recursos propios del ', " davant d'un cost dels recursos propis del "],
+    ['Deuda baja: la deuda neta equivale a ', 'Deute baix: el deute net equival a '], ['Deuda neta elevada: ', 'Deute net elevat: '], [' el EBITDA.', " l'EBITDA."],
+    ['Cobertura de intereses baja: el beneficio operativo es ', "Cobertura d'interessos baixa: el benefici operatiu és "], [' los gastos financieros.', ' les despeses financeres.'],
+    ['Ventas creciendo un ', 'Vendes creixent un '], ['Ventas cayendo un ', 'Vendes caient un '], [' anual entre ', ' anual entre '],
+    ['Beneficios positivos en los ', 'Beneficis positius en els '], [' ejercicios presentados a la SEC.', ' exercicis presentats a la SEC.'],
+    ['Pérdidas en ', 'Pèrdues en '], [' de los últimos ', ' dels últims '], [' ejercicios.', ' exercicis.'], [' años seguidos subiendo el dividendo', ' anys seguits apujant el dividend'],
+    ['Reparte más dividendo que beneficio contable (payout del ', 'Reparteix més dividend que benefici comptable (payout del '],
+    ['Puntuación F de Piotroski de ', 'Puntuació F de Piotroski de '], [' sobre 9: solidez financiera y mejora en el último ejercicio.', " sobre 9: solidesa financera i millora en l'últim exercici."],
+    [' sobre 9: señales de deterioro en el último ejercicio.', " sobre 9: senyals de deteriorament en l'últim exercici."],
+    ['Puesto ', 'Posició '], [' en la fórmula mágica de Greenblatt (beneficio alto frente a su precio y a su capital).', ' en la fórmula màgica de Greenblatt (benefici alt en relació amb el seu preu i el seu capital).'],
+    ['Los analistas han subido un ', 'Els analistes han apujat un '], ['Los analistas han bajado un ', 'Els analistes han abaixat un '],
+    [' su previsión de BPA del ejercicio en los últimos 90 días.', " la seva previsió de BPA de l'exercici en els últims 90 dies."],
+    ['En el último trimestre el BPA quedó un ', "L'últim trimestre el BPA va quedar un "], [' por debajo de lo esperado.', " per sota del que s'esperava."],
+    ['En el último trimestre el BPA superó en un ', "L'últim trimestre el BPA va superar en un "], [' lo esperado.', " el que s'esperava."],
+    ['Cotiza con un margen de seguridad del ', 'Cotitza amb un marge de seguretat del '], [' sobre el valor central.', ' sobre el valor central.'],
+    ['La cotización supera en un ', 'La cotització supera en un '], [' el valor central: descuenta más de lo que recoge el modelo.', ' el valor central: descompta més del que recull el model.'],
+    ['El valor terminal pesa el ', 'El valor terminal pesa el '], [' del valor: la valoración depende mucho del largo plazo.', ' del valor: la valoració depèn molt del llarg termini.'],
+    [': más volátil que el mercado.', ': més volàtil que el mercat.'],
+    // ràtios
+    ['Supera su coste de capital (WACC del ', 'Supera el seu cost de capital (WACC del '], ['): crea valor al invertir.', '): crea valor en invertir.'],
+    ['No cubre su coste de capital (WACC del ', 'No cobreix el seu cost de capital (WACC del '],
+    ['Por encima de su coste de los recursos propios (', 'Per sobre del seu cost dels recursos propis ('], ['Por debajo de su coste de los recursos propios (', 'Per sota del seu cost dels recursos propis ('],
+    ['Conversión en caja ', 'Conversió en caixa '], [' (flujo de explotación ÷ beneficio)', " (flux d'explotació ÷ benefici)"], ['Mediana de sus comparables: ', 'Mediana dels seus comparables: '],
+    ['Reparte el ', 'Reparteix el '], [' del beneficio', ' del benefici'], [' y lleva ', ' i fa '], [' años subiéndolo', " anys que l'apuja"],
+    // anàlisi financera
+    ['Las ventas han pasado de ', 'Les vendes han passat de '], ['el BPA ha crecido un ', 'el BPA ha crescut un '], ['El BPA ha crecido un ', 'El BPA ha crescut un '],
+    ['el BPA ha caído un ', 'el BPA ha caigut un '], ['El BPA ha caído un ', 'El BPA ha caigut un '],
+    ['el margen de explotación ha ido del ', "el marge d'explotació ha anat del "], ['El margen de explotación ha ido del ', "El marge d'explotació ha anat del "],
+    ['y el margen neto, del ', 'i el marge net, del '], ['Y el margen neto, del ', 'I el marge net, del '],
+    ['Cifras de los formularios 10-K presentados a la SEC, por año natural.', 'Xifres dels formularis 10-K presentats a la SEC, per any natural.'],
+    ['Ventas y beneficio neto (', 'Vendes i benefici net ('],
+    // resultats i consens
+    [' (fecha estimada)', ' (data estimada)'], ['Último trimestre (', 'Últim trimestre ('], [' frente a ', ' davant de '], [' esperado:', ' esperat:'],
+    ['BPA esperado del ejercicio', "BPA esperat de l'exercici"], [' (cierre ', ' (tancament '], [' suben y ', ' apugen i '],
+    [' bajan su previsión de BPA del ejercicio', " abaixen la seva previsió de BPA de l'exercici"], [' días', ' dies'], [' día', ' dia'],
+    // dividend
+    [' no paga dividendo', ' no paga dividend'], ['; en los últimos doce meses ha dedicado ', '; en els últims dotze mesos ha dedicat '], [' a recomprar acciones', ' a recomprar accions'],
+    [' (más que el beneficio contable)', ' (més que el benefici comptable)'], ['Crecimiento anual ', 'Creixement anual '],
+    // qualitat
+    ['Puntuación F de Piotroski: ', 'Puntuació F de Piotroski: '], [' señales con datos), comparando el ejercicio ', " senyals amb dades), comparant l'exercici "], [' con el anterior.', " amb l'anterior."],
+    [' en la fórmula mágica de Greenblatt: rentabilidad del beneficio (EBIT ÷ valor de la empresa) del ', " en la fórmula màgica de Greenblatt: rendibilitat del benefici (EBIT ÷ valor de l'empresa) del "],
+    [' y rentabilidad del capital (EBIT ÷ activo fijo y NOF) del ', ' i rendibilitat del capital (EBIT ÷ actiu fix i NOF) del '], [' Está entre las 30 primeras.', ' És entre les 30 primeres.'],
+    ['No entra en la fórmula mágica: ', 'No entra a la fórmula màgica: '], ['se excluyen financieras, eléctricas y REIT', "s'exclouen financeres, elèctriques i REIT"],
+    ['beneficio operativo no positivo o sin datos', 'benefici operatiu no positiu o sense dades'],
+    // cotització
+    ['En el último año: ', "L'últim any: "], ['En los últimos ', 'En els últims '], [', sin contar dividendos. ', ', sense comptar dividends. '],
+    ['Máximo y mínimo de las últimas 52 semanas: ', 'Màxim i mínim de les últimes 52 setmanes: '], [' (cotización ', ' (cotització '], [' desde el máximo).', ' des del màxim).'],
+    // conclusions
+    ['Próximos resultados el ', 'Propers resultats el '], [': BPA esperado de ', ': BPA esperat de '], [' y ventas de ', ' i vendes de '],
+    ['El valor depende sobre todo del crecimiento de las ventas (', 'El valor depèn sobretot del creixement de les vendes ('],
+    [' en los años 1–2 según el consenso) y del margen a largo plazo (', ' en els anys 1–2 segons el consens) i del marge a llarg termini ('], [' en el año 10).', " a l'any 10)."],
+    ['El valor depende sobre todo del ROE que mantenga a largo plazo (', 'El valor depèn sobretot del ROE que mantingui a llarg termini ('],
+    [' en el caso base) frente a su coste (', ' en el cas base) davant del seu cost ('],
+    ['El valor depende sobre todo del crecimiento del AFFO (', "El valor depèn sobretot del creixement de l'AFFO ("], [' el año 1 en el caso base) y de los tipos de interés.', " l'any 1 en el cas base) i dels tipus d'interès."],
+    ['Sensibilidad: un punto más de ', 'Sensibilitat: un punt més de '], [' cambia el valor del caso base en un ', ' canvia el valor del cas base en un '],
+    ['Precio de compra con un margen de seguridad del 25 %: ', 'Preu de compra amb un marge de seguretat del 25 %: '], [' por acción (cotización actual: ', ' per acció (cotització actual: '],
+    ['Criterios de Graham que no cumple: ', 'Criteris de Graham que no compleix: '], ['Tu tesis: ', 'La teva tesi: '], ['Tus precios: ', 'Els teus preus: '],
+    ['compra por debajo de ', 'compra per sota de '], ['venta por encima de ', 'venda per sobre de '],
+    // fonts
+    ['Cotizaciones, estados financieros de los últimos doce meses, consenso de analistas y múltiplos: Yahoo Finance (datos del ', "Cotitzacions, estats financers dels últims dotze mesos, consens d'analistes i múltiples: Yahoo Finance (dades del "],
+    ['; actualización completa del ', '; actualització completa del '], ['Parámetros de mercado: tipo sin riesgo ', 'Paràmetres de mercat: tipus sense risc '],
+    [' (Treasury a 10 años), prima de riesgo ', ' (Treasury a 10 anys), prima de risc '], [', crecimiento a perpetuidad ', ', creixement a perpetuïtat '], ['; escenarios ', '; escenaris '],
+    ['Método completo: ', 'Mètode complet: '],
+  );
+  FR.sort((a, b) => b[0].length - a[0].length);
+
   // ---------------------------------------------------------------- paraules soltes (últim recurs)
   const PAL = [
     [/\bAño\b/g, 'Any'], [/\baño\b/g, 'any'], [/\baños\b/g, 'anys'], [/\bAños\b/g, 'Anys'], [/\bpor\b/g, 'per'], [/\bcon\b/g, 'amb'], [/\bsin\b/g, 'sense'],
@@ -255,7 +390,8 @@
     [/\bdividendos\b/g, 'dividends'], [/\bdividendo\b/g, 'dividend'], [/\bbeneficio\b/g, 'benefici'], [/\brentabilidad\b/g, 'rendibilitat'], [/\bmedia\b/g, 'mitjana'],
     [/\bmínimo\b/g, 'mínim'], [/\bmáximo\b/g, 'màxim'], [/\bponderado\b/g, 'ponderat'], [/\bcomparables\b/g, 'comparables'], [/\bpara\b/g, 'per a'],
     // apostrofació davant de xifres que es llegeixen amb vocal (u, onze): «de l'1,8 %», «a l'11 %», «l'1 %»
-    [/\bdel (1|11)(?=[,.\s %])/g, "de l'$1"], [/\bal (1|11)(?=[,.\s %])/g, "a l'$1"], [/\b([Ee])l (1|11)(?=[,.\s %])/g, (m, e, n) => (e === 'E' ? "L'" : "l'") + n],
+    [/\bdel (1|11)(?=[,\s %]|\.(?!\d)|$)/g, "de l'$1"], [/\bal (1|11)(?=[,\s %]|\.(?!\d)|$)/g, "a l'$1"], [/\b([Ee])l (1|11)(?=[,\s %]|\.(?!\d)|$)/g, (m, e, n) => (e === 'E' ? "L'" : "l'") + n],
+    [/\bde (1|11)(?=[,\s %$]|\.(?!\d)|$)/g, "d'$1"],
   ];
 
   function frases(t) {
@@ -265,6 +401,7 @@
   }
   function nucli(t) {
     if (NOM[t]) return NOM[t];
+    if (/[.:]$/.test(t) && NOM[t.slice(0, -1)]) return NOM[t.slice(0, -1)] + t.slice(-1);
     if (t.includes(' · ')) t = t.split(' · ').map((x) => NOM[x] || x).join(' · ');
     return frases(t);
   }
