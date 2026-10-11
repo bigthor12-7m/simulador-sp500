@@ -30,10 +30,11 @@ VALORACION = ["trailingEnterprisesValueEBITDARatio", "trailingEnterpriseValue", 
               "trailingPbRatio"]
 
 
-def tipos_series():
-    pyg = [p + x for x in CUENTA_RESULTADOS + FLUJOS for p in ("annual", "quarterly", "trailing")]
-    bal = [p + x for x in BALANCE for p in ("annual", "quarterly")]
-    return [pyg, bal + VALORACION]
+def tipos_series(tam=24):
+    """Grupos de tipos para cada petición: con muchos tipos a la vez Yahoo recorta la historia (deja un solo año)."""
+    todos = [p + x for x in CUENTA_RESULTADOS + FLUJOS for p in ("annual", "quarterly", "trailing")]
+    todos += [p + x for x in BALANCE for p in ("annual", "quarterly")] + VALORACION
+    return [todos[i:i + tam] for i in range(0, len(todos), tam)]
 
 
 class Cliente:
