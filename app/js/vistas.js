@@ -94,7 +94,7 @@
     );
     const cand = R.val.filter((e) => A.margenSeg(Vs[e.ticker].central, e.cotizacion) >= 0.25);
     main.append(h('section', { class: 'sv-kpis' },
-      A.kpi('Cotizan por debajo de su valor central', `${R.bajo} de ${R.nf}`, `${pct(R.bajo / R.nf, 0)} de las valoraciones fiables · por defecto ${def.bajo}`),
+      A.kpi('Cotizan por debajo de su valor central', String(R.bajo), `de ${R.nf} valoraciones fiables (${pct(R.bajo / R.nf, 0)}) · por defecto ${def.bajo}`),
       A.kpi('Potencial mediano', pct(R.med, 0, true), `Por defecto: ${pct(def.med, 0, true)}`, A.clsPot(R.med)),
       A.kpi('Valor agregado frente a la capitalización', pct(R.agregado, 0, true), `Suma de valores centrales ÷ capitalización · por defecto ${pct(def.agregado, 0, true)}`, A.clsPot(R.agregado)),
       h('a', { class: 'sv-card sv-kpi ap-kpi-link', href: '#/oportunidades' }, h('p', { class: 'sv-kpi-l' }, 'Con margen de seguridad de al menos el 25 %'), h('p', { class: 'sv-num' }, String(cand.length)), h('p', { class: 'sv-kpi-r' }, 'Ver el filtro de oportunidades ›')),
