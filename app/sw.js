@@ -1,7 +1,7 @@
 // Simulador S&P 500 · funcionamiento sin conexión.
 // La app (HTML, código, fuentes, iconos) se guarda al instalarla; los datos se piden siempre a la red primero
 // (para recibir la actualización semanal) y, sin conexión, se usan los últimos guardados.
-const VERSION = 'sp500-1.0.0';
+const VERSION = 'sp500-1.1.0';
 const APP = ['./', 'index.html', 'app.css', 'motor.js', 'js/base.js', 'js/graficos.js', 'js/vistas.js', 'js/oportunidades.js', 'js/arranque.js',
   'vendor/d3.min.js', 'manifest.webmanifest',
   'fuentes/Inter-Regular.woff', 'fuentes/Inter-Medium.woff', 'fuentes/Inter-SemiBold.woff', 'fuentes/Lora-Regular.woff', 'fuentes/Lora-SemiBold.woff',
