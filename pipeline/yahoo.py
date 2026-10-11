@@ -30,11 +30,17 @@ VALORACION = ["trailingEnterprisesValueEBITDARatio", "trailingEnterpriseValue", 
               "trailingPbRatio"]
 
 
-def tipos_series(tam=24):
-    """Grupos de tipos para cada petición: con muchos tipos a la vez Yahoo recorta la historia (deja un solo año)."""
-    todos = [p + x for x in CUENTA_RESULTADOS + FLUJOS for p in ("annual", "quarterly", "trailing")]
-    todos += [p + x for x in BALANCE for p in ("annual", "quarterly")] + VALORACION
-    return [todos[i:i + tam] for i in range(0, len(todos), tam)]
+ANUAL = ["TotalRevenue", "OperatingIncome", "NetIncomeCommonStockholders", "DilutedEPS", "CashDividendsPaid", "FreeCashFlow",
+         "CapitalExpenditure", "StockholdersEquity", "TotalDebt", "OrdinarySharesNumber"]
+
+
+def tipos_series(tam=40):
+    """Grupos de tipos por frecuencia. Si se mezclan frecuencias en una petición, Yahoo recorta la historia anual a un año."""
+    anual = ["annual" + x for x in ANUAL]
+    trimestral = ["quarterly" + x for x in CUENTA_RESULTADOS + FLUJOS + BALANCE]
+    ttm = ["trailing" + x for x in CUENTA_RESULTADOS + FLUJOS] + VALORACION
+    trozos = lambda l: [l[i:i + tam] for i in range(0, len(l), tam)]
+    return [anual] + trozos(trimestral) + trozos(ttm)
 
 
 class Cliente:
@@ -61,14 +67,22 @@ class Cliente:
             self._get = get
             self.tipo = "requests"
 
-    def get(self, url, params, intentos=5):
+    _ritmo = threading.Lock()
+    _ultimo = [0.0]
+    INTERVALO = 0.12  # segundos mínimos entre peticiones (todas las hebras)
+
+    def get(self, url, params, intentos=7):
         for i in range(intentos):
+            with Cliente._ritmo:
+                espera = Cliente._ultimo[0] + self.INTERVALO - time.time()
+                if espera > 0: time.sleep(espera)
+                Cliente._ultimo[0] = time.time()
             try:
                 return self._get(url, params)
             except Exception as e:
                 if i == intentos - 1: raise
-                espera = (4 if "429" in str(e) or "Too Many" in str(e) else 1.5) * (i + 1) + random.random()
-                time.sleep(espera)
+                limitado = "429" in str(e) or "Too Many" in str(e)
+                time.sleep((10 if limitado else 1.5) * (i + 1) + random.random() * 2)
 
 
 def quote_summary(cli, t):
@@ -95,7 +109,7 @@ def series(cli, t, desde=1514764800):
     return out
 
 
-def descargar_todo(tickers, hilos=4, extra=()):
+def descargar_todo(tickers, hilos=3, extra=()):
     """Descarga quoteSummary y series de cada ticker. Devuelve (datos, fallos)."""
     cli = Cliente()
     datos, fallos = {}, {}
@@ -117,6 +131,14 @@ def descargar_todo(tickers, hilos=4, extra=()):
 
     with ThreadPoolExecutor(max_workers=hilos) as ex:
         list(ex.map(uno, list(tickers) + list(extra)))
+    # segunda pasada, más lenta, para los que han fallado (límite de peticiones de Yahoo)
+    pendientes = [t for t in list(tickers) + list(extra) if t in fallos]
+    if pendientes:
+        time.sleep(45)
+        for t in pendientes:
+            fallos.pop(t, None)
+            uno(t)
+            time.sleep(1.0)
     return datos, fallos, cli.tipo
 
 

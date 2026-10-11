@@ -14,7 +14,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", default="brutos")
     ap.add_argument("--max", type=int, default=0, help="solo los N primeros (prueba)")
-    ap.add_argument("--hilos", type=int, default=4)
+    ap.add_argument("--hilos", type=int, default=3)
     a = ap.parse_args()
     sal = pathlib.Path(a.salida); sal.mkdir(parents=True, exist_ok=True)
 
