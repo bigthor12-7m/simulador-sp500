@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador S&amp;P 500</title>
+<meta name="description" content="Simulador de valoración de las empresas del S&P 500: DCF por escenarios y múltiplos de comparables, búsqueda por sector, comparador y filtro de oportunidades de inversión en valor.">
+<meta name="theme-color" content="#16294A">
+<meta name="color-scheme" content="light dark">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="iconos/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="iconos/favicon-64.png">
+<link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="S&amp;P 500">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preload" href="fuentes/Inter-Regular.woff" as="font" type="font/woff" crossorigin>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="ap">
+  <header class="ap-bar">
+    <a class="ap-brand" href="#/mercado" aria-label="Inicio: mercado">
+      <img src="iconos/favicon-64.png" alt="" width="30" height="30">
+      <div><p class="ap-name">Simulador S&amp;P 500</p><p class="ap-sub" id="ap-datos">Cargando datos…</p></div>
+    </a>
+    <div class="ap-bus" role="search">
+      <label class="ap-bus-l" for="ap-bus">Buscar empresa</label>
+      <input id="ap-bus" type="search" placeholder="Buscar empresa o ticker…" autocomplete="off" spellcheck="false"
+        role="combobox" aria-expanded="false" aria-controls="ap-bus-lista" aria-autocomplete="list">
+      <ul class="ap-bus-lista" id="ap-bus-lista" role="listbox" hidden></ul>
+    </div>
+    <div class="ap-acc">
+      <span class="ap-off" id="ap-off" hidden>Sin conexión</span>
+      <button type="button" class="ap-inst" id="ap-instalar" hidden>Instalar</button>
+    </div>
+  </header>
+  <nav class="ap-nav" aria-label="Secciones">
+    <a href="#/mercado" data-sec="mercado">Mercado</a>
+    <a href="#/oportunidades" data-sec="oportunidades">Oportunidades</a>
+    <a href="#/comparar" data-sec="comparar">Comparar <span class="ap-nav-n" id="ap-cmp-n" hidden></span></a>
+    <a href="#/metodo" data-sec="metodo">Método</a>
+  </nav>
+  <div class="ap-ios" id="ap-ios" hidden>
+    <span>Para instalarla en el iPhone o el iPad: botón <b>Compartir</b> y después <b>Añadir a pantalla de inicio</b>.</span>
+    <button type="button" class="sv-btn" id="ap-ios-x">Entendido</button>
+  </div>
+  <div class="ap-layout">
+    <aside class="ap-side" aria-label="Supuestos generales">
+      <details class="ap-sup" id="ap-sup" open>
+        <summary><span class="ap-sup-t">Supuestos generales</span><span class="ap-sup-r" id="ap-sup-r"></span></summary>
+        <p class="sv-card-n">Se aplican a todas las empresas: mueve cualquiera y todo se recalcula. Debajo de cada control, el valor por defecto.</p>
+        <div class="sv-ctrls">
+          <div class="sv-grp">
+            <p class="sv-grp-t">Coste del capital</p>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-rf">Tipo sin riesgo (Treasury 10 años)</label><span class="sv-ctrl-v" id="sv-rf-v">—</span></div>
+              <input class="sv-range" id="sv-rf" type="range" min="0.02" max="0.07" step="0.0001"><span class="sv-ctrl-d" id="sv-rf-d"></span></div>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-erp">Prima de riesgo de mercado</label><span class="sv-ctrl-v" id="sv-erp-v">—</span></div>
+              <input class="sv-range" id="sv-erp" type="range" min="0.025" max="0.08" step="0.0001"><span class="sv-ctrl-d" id="sv-erp-d"></span></div>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-dw">Ajuste adicional al WACC</label><span class="sv-ctrl-v" id="sv-dw-v">—</span></div>
+              <input class="sv-range" id="sv-dw" type="range" min="-0.03" max="0.03" step="0.0025"><span class="sv-ctrl-d" id="sv-dw-d"></span></div>
+          </div>
+          <div class="sv-grp">
+            <p class="sv-grp-t">Valor terminal</p>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-g">Crecimiento a perpetuidad (g)</label><span class="sv-ctrl-v" id="sv-g-v">—</span></div>
+              <input class="sv-range" id="sv-g" type="range" min="0" max="0.045" step="0.0025"><span class="sv-ctrl-d" id="sv-g-d"></span></div>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><span id="sv-vt-l">Método del valor terminal</span></div>
+              <div class="sv-seg" role="group" aria-labelledby="sv-vt-l" id="sv-vt">
+                <button type="button" data-vt="inductores">Inductores (ROIC)</button><button type="button" data-vt="gordon">Gordon (flujo)</button>
+              </div><span class="sv-ctrl-d" id="sv-vt-d"></span></div>
+          </div>
+          <div class="sv-grp">
+            <p class="sv-grp-t">Escenarios y conciliación</p>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-pp">Probabilidad del escenario pesimista</label><span class="sv-ctrl-v" id="sv-pp-v">—</span></div>
+              <input class="sv-range" id="sv-pp" type="range" min="0" max="0.6" step="0.05"></div>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-po">Probabilidad del escenario optimista</label><span class="sv-ctrl-v" id="sv-po-v">—</span></div>
+              <input class="sv-range" id="sv-po" type="range" min="0" max="0.6" step="0.05"><span class="sv-ctrl-d" id="sv-prob-d"></span></div>
+            <div class="sv-ctrl"><div class="sv-ctrl-l"><label for="sv-pd">Peso del DCF en el valor central</label><span class="sv-ctrl-v" id="sv-pd-v">—</span></div>
+              <input class="sv-range" id="sv-pd" type="range" min="0" max="1" step="0.1"><span class="sv-ctrl-d" id="sv-pd-d"></span></div>
+          </div>
+        </div>
+        <div class="sv-bar">
+          <div class="sv-chips" id="sv-presets"><span class="sv-bar-l">Escenarios rápidos:</span></div>
+          <button type="button" class="sv-btn" id="sv-reset">Volver a los supuestos por defecto</button>
+        </div>
+      </details>
+    </aside>
+    <main class="sv" id="vista" tabindex="-1">
+      <header class="sv-head"><h1 class="sv-h1">Simulador S&amp;P 500</h1><p class="sv-take dash-skeleton">Cargando los datos de las empresas…</p></header>
+    </main>
+  </div>
+  <footer class="ap-pie">
+    <p>Herramienta formativa: no es una recomendación de inversión. Datos: Yahoo Finance (estados financieros, cotizaciones y consenso), lista del S&amp;P 500 con clasificación GICS. <span id="ap-version"></span></p>
+  </footer>
+</div>
+<noscript><p style="padding:16px">Esta app necesita JavaScript.</p></noscript>
+<script src="vendor/d3.min.js"></script>
+<script src="motor.js"></script>
+<script src="js/base.js"></script>
+<script src="js/graficos.js"></script>
+<script src="js/vistas.js"></script>
+<script src="js/oportunidades.js"></script>
+<script src="js/arranque.js"></script>
+</body>
+</html>
