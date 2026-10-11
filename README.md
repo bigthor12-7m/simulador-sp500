@@ -40,9 +40,11 @@ Para actualizar a mano: pestaña **Actions** → **Actualizar datos** → **Run 
 - **Años 3–10**: crecimiento hacia el 3,5 % del año 10; margen hacia un valor de largo plazo que recorre un 30 % de la distancia hasta la mediana de sus comparables (con una banda de ±30 % sobre el del año 2). Pesimista −15 % de margen a largo plazo; optimista +10 %.
 - **WACC**: CAPM con una beta que es la media de la de Yahoo y la de su industria reapalancada con su deuda (mínimo 0,6); coste de la deuda por rating sintético según la cobertura de intereses.
 - **Valor terminal**: inductores de valor (ROIC terminal entre el WACC y el ROIC del año 10, tope del 40 %) o Gordon.
-- **Múltiplos**: PER y EV/EBITDA adelantados de las empresas de su misma subindustria GICS (de su industria si hay menos de cinco con múltiplos válidos, o de su sector si aun así hay menos de tres), las diez más parecidas en tamaño, sin PER > 60 ni EV/EBITDA > 40.
+- **Múltiplos (empresas no financieras)**: PER y EV/EBITDA adelantados de las empresas de su misma subindustria GICS (de su industria si hay menos de cinco con múltiplos válidos, o de su sector si aun así hay menos de tres), las diez más parecidas en tamaño, sin PER > 60 ni EV/EBITDA > 40.
 - **Valor central**: 50 % DCF ponderado (25/50/25) + 50 % media de los dos múltiplos.
-- **Fase 1**: no se valoran bancos, aseguradoras, gestoras ni REIT (necesitan un modelo de rentabilidad sobre recursos propios o de valor de los activos).
+- **Bancos, aseguradoras, gestoras, financieras y eléctricas reguladas**: modelo de **beneficio residual** (valor contable + valor actual de (ROE − Ke) × valor contable). ROE de los años 1–2 con el BPA del consenso, convergencia a Ke + 25/50/75 % del diferencial del año 2 según el escenario y reparto que converge a 1 − g / ROE. Múltiplos: PER adelantado y precio / valor contable.
+- **REIT**: descuento del **AFFO** (≈ 85 % del FFO = beneficio + amortización − plusvalías), que crece como los ingresos del consenso en los años 1–2 y converge a g; múltiplos P/FFO y EV/EBITDA.
+- **Beta de financieras, eléctricas y REIT**: media de la de Yahoo y la mediana de su industria (sin desapalancar), mínimo 0,6.
 
 Las reglas son automáticas y no sustituyen el análisis de cada empresa: fusiones recientes, partidas extraordinarias o cambios de negocio pueden distorsionar una valoración. La app marca las valoraciones poco fiables.
 

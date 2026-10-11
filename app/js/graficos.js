@@ -241,14 +241,45 @@
       .on('mouseleave', () => tip.style('opacity', 0));
   };
 
+  // ---------------------------------------------------------------- cascada genérica por acción: pasos [{n, v, tipo: 'suma'|'total'}]
+  G.cascada = function (cont, pasos, unidad = '$ por acción') {
+    let acc = 0;
+    for (const s of pasos) { if (s.tipo === 'total') { s.a = 0; s.b = s.v; } else { s.a = acc; acc += s.v; s.b = acc; } }
+    const alto = 240;
+    const { svg, tip, w } = G.lienzo(cont, alto);
+    const ys = pasos.flatMap((s) => [s.a, s.b]);
+    const y = d3.scaleLinear().domain([Math.min(0, d3.min(ys)), d3.max(ys)]).nice().range([alto - 48, 18]);
+    const ml = G.medir(svg, y.ticks(4).map((d) => num(d, 0)), 11) + 10;
+    const x = d3.scaleBand().domain(pasos.map((s) => s.n)).range([ml, w]).padding(0.3);
+    ejeY(svg, y, ml, w, 4);
+    const bw = Math.min(64, x.bandwidth());
+    const col = (s) => (s.tipo === 'total' ? 'var(--color-fg)' : s.v >= 0 ? C1 : C2);
+    const gb = svg.selectAll('g.b').data(pasos).join('g');
+    gb.append('rect').attr('x', (s) => x(s.n) + (x.bandwidth() - bw) / 2).attr('width', bw).attr('y', (s) => y(Math.max(s.a, s.b))).attr('height', (s) => Math.max(1.5, Math.abs(y(s.a) - y(s.b)))).attr('rx', 3)
+      .style('fill', col).attr('fill-opacity', (s) => (s.tipo === 'total' ? 0.75 : 0.9));
+    gb.append('text').attr('x', (s) => x(s.n) + x.bandwidth() / 2).attr('y', (s) => y(Math.max(s.a, s.b)) - 5).attr('text-anchor', 'middle').attr('font-size', 11).style('fill', 'var(--color-fg)').text((s) => num(s.v, 0, s.tipo !== 'total'));
+    const lab = svg.selectAll('text.xl').data(pasos).join('text').attr('x', (s) => x(s.n) + x.bandwidth() / 2).attr('y', alto - 32).attr('text-anchor', 'middle').attr('font-size', w < 480 ? 9.5 : 10.5).style('fill', 'var(--color-fg-muted)');
+    lab.each(function (s) {
+      const palabras = s.n.split(' '), t = d3.select(this), maxW = x.bandwidth() + 10;
+      let lin = [], ts = t.append('tspan').attr('x', x(s.n) + x.bandwidth() / 2).attr('dy', 0);
+      for (const pz of palabras) {
+        lin.push(pz); ts.text(lin.join(' '));
+        if (ts.node().getComputedTextLength() > maxW && lin.length > 1) { lin.pop(); ts.text(lin.join(' ')); lin = [pz]; ts = t.append('tspan').attr('x', x(s.n) + x.bandwidth() / 2).attr('dy', '1.15em').text(pz); }
+      }
+    });
+    gb.on('mousemove', (ev, s) => tipEn(tip, cont, ev, [[s.n, null, 'sv-tip-h'], [`${num(s.v, 2)} ${unidad}`].concat(s.nota ? [] : []), ...(s.nota ? [[s.nota]] : [])]))
+      .on('mouseleave', () => tip.style('opacity', 0));
+  };
+
   // ---------------------------------------------------------------- empresa: sensibilidad WACC × g
   G.sensibilidad = function (cont, e, v, par, aj) {
+    const tasa = e.modelo === 'fcff' ? 'WACC' : 'Ke';
     const pasos = [-0.015, -0.01, -0.005, 0, 0.005, 0.01, 0.015];
     const ws = pasos.map((d) => v.w + d), gs = pasos.map((d) => v.g + d), rt = v.res.base.roicT;
     const celdas = [];
     ws.forEach((w, i) => gs.forEach((g, j) => {
-      const r = w - g >= 0.005 ? MOTOR.sensibilidad(e, e.trays, par, aj, w, g, rt) : null;
-      celdas.push({ i, j, w, g, vps: r ? r.vps : null });
+      const r = w - g >= 0.005 ? MOTOR.sensibilidadVps(e, par, aj, v, w, g) : null;
+      celdas.push({ i, j, w, g, vps: r });
     }));
     const alto = 34 + ws.length * 32;
     const { svg, tip, w } = G.lienzo(cont, alto);
@@ -256,7 +287,7 @@
     const cw = (w - ml) / gs.length, ch = 30;
     const ok = G.colorDe('var(--color-ok)'), bad = G.colorDe('var(--color-bad)');
     svg.append('text').attr('x', ml).attr('y', 10).attr('font-size', 11).style('fill', 'var(--color-fg-muted)').text('g →');
-    svg.append('text').attr('x', 0).attr('y', 10).attr('font-size', 11).style('fill', 'var(--color-fg-muted)').text('WACC ↓');
+    svg.append('text').attr('x', 0).attr('y', 10).attr('font-size', 11).style('fill', 'var(--color-fg-muted)').text(`${tasa} ↓`);
     gs.forEach((g, j) => svg.append('text').attr('x', ml + cw * j + cw / 2).attr('y', 26).attr('text-anchor', 'middle').attr('font-size', 11).attr('font-weight', j === 3 ? 600 : 400).style('fill', j === 3 ? 'var(--color-fg)' : 'var(--color-fg-muted)').text(pct(g, 1)));
     ws.forEach((x, i) => svg.append('text').attr('x', ml - 8).attr('y', 34 + i * 32 + ch / 2).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 11).attr('font-weight', i === 3 ? 600 : 400).style('fill', i === 3 ? 'var(--color-fg)' : 'var(--color-fg-muted)').text(pct(x, 1)));
     const gc = svg.selectAll('g.c').data(celdas).join('g');
@@ -266,16 +297,18 @@
       .style('stroke', (c) => (c.i === 3 && c.j === 3 ? 'var(--color-fg)' : 'none')).attr('stroke-width', 1.5);
     gc.append('text').attr('x', (c) => ml + c.j * cw + cw / 2).attr('y', (c) => 34 + c.i * 32 + ch / 2).attr('dy', '0.35em').attr('text-anchor', 'middle')
       .attr('font-size', cw < 46 ? 10 : 11.5).attr('font-weight', (c) => (c.i === 3 && c.j === 3 ? 600 : 400)).style('fill', 'var(--color-fg)').text((c) => (c.vps == null ? 'n.s.' : num(c.vps, 0)));
-    gc.on('mousemove', (ev, c) => tipEn(tip, cont, ev, [[`WACC ${pct(c.w, 2)} · g ${pct(c.g, 2)}`, null, 'sv-tip-h'], [c.vps == null ? 'WACC demasiado cerca de g' : `${usd(c.vps)} por acción (${pct(c.vps / e.cotizacion - 1, 0, true)})`]]))
+    gc.on('mousemove', (ev, c) => tipEn(tip, cont, ev, [[`${tasa} ${pct(c.w, 2)} · g ${pct(c.g, 2)}`, null, 'sv-tip-h'], [c.vps == null ? `${tasa} demasiado cerca de g` : `${usd(c.vps)} por acción (${pct(c.vps / e.cotizacion - 1, 0, true)})`]]))
       .on('mouseleave', () => tip.style('opacity', 0));
   };
 
   // ---------------------------------------------------------------- empresa: valor según el método
   G.metodos = function (cont, e, v, pesoDcf) {
     const mu = e.mu || {};
-    const met = [{ n: 'DCF por escenarios', lo: v.res.pes.vps, ce: v.pond, hi: v.res.opt.vps }];
-    if (mu.per_valor_mediana != null) met.push({ n: 'PER adelantado', lo: mu.per_valor_min, ce: mu.per_valor_mediana, hi: mu.per_valor_max });
-    if (mu.ev_ebitda_valor_mediana != null) met.push({ n: 'EV/EBITDA adelantado', lo: mu.ev_ebitda_valor_min, ce: mu.ev_ebitda_valor_mediana, hi: mu.ev_ebitda_valor_max });
+    const intr = { fcff: 'DCF por escenarios', ri: 'Beneficio residual', reit: 'Descuento del AFFO' }[e.modelo] || 'DCF por escenarios';
+    const met = [{ n: intr, lo: v.res.pes.vps, ce: v.pond, hi: v.res.opt.vps, intr: true }];
+    const lista = mu.metodos || [{ n: 'PER adelantado', valor: { min: mu.per_valor_min, med: mu.per_valor_mediana, max: mu.per_valor_max } },
+      { n: 'EV/EBITDA adelantado', valor: { min: mu.ev_ebitda_valor_min, med: mu.ev_ebitda_valor_mediana, max: mu.ev_ebitda_valor_max } }];
+    for (const m of lista) if (m.valor && m.valor.med != null) met.push({ n: m.n, lo: m.valor.min != null ? m.valor.min : m.valor.med, ce: m.valor.med, hi: m.valor.max != null ? m.valor.max : m.valor.med });
     met.push({ n: 'Valor central', lo: v.bajo, ce: v.central, hi: v.alto, total: true });
     const rowH = 36, alto = met.length * rowH + 40;
     const { svg, tip, w } = G.lienzo(cont, alto);
@@ -297,7 +330,7 @@
     svg.append('line').attr('x1', x(e.cotizacion)).attr('x2', x(e.cotizacion)).attr('y1', 10).attr('y2', alto - 22).style('stroke', C2).attr('stroke-width', 2);
     svg.append('text').attr('x', x(e.cotizacion)).attr('y', 8).attr('text-anchor', 'middle').attr('font-size', 11).style('fill', 'var(--color-fg)').text(`Cotización ${usd(e.cotizacion, 0)}`);
     gm.on('mousemove', (ev, m) => {
-      const extra = m.total ? `${pct(pesoDcf, 0)} DCF + ${pct(1 - pesoDcf, 0)} múltiplos` : m.n.startsWith('DCF') ? 'Pesimista · ponderado · optimista' : 'Mínimo · mediana · máximo de los comparables';
+      const extra = m.total ? `${pct(pesoDcf, 0)} ${e.modelo === 'fcff' ? 'DCF' : 'modelo intrínseco'} + ${pct(1 - pesoDcf, 0)} múltiplos` : m.intr ? 'Pesimista · ponderado · optimista' : 'Mínimo · mediana · máximo de los comparables';
       tipEn(tip, cont, ev, [[m.n, null, 'sv-tip-h'], [`${usd(m.lo)} · ${usd(m.ce)} · ${usd(m.hi)}`], [extra]]);
     }).on('mouseleave', () => tip.style('opacity', 0));
   };
@@ -317,7 +350,8 @@
     ejeY(svg, y, ml, w - mr, 5, fmt);
     svg.selectAll('text.xt').data(xs).join('text').attr('x', (d) => x(d)).attr('y', alto - 6).attr('text-anchor', 'middle').attr('font-size', 11).style('fill', 'var(--color-fg-muted)').text((d) => d);
     for (const s of series) {
-      svg.append('path').attr('d', d3.line().x((p) => x(p[0])).y((p) => y(p[1])).defined((p) => isFinite(p[1]))(s.puntos)).style('fill', 'none').style('stroke', s.color).attr('stroke-width', 2.2).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
+      svg.append('path').attr('d', d3.line().x((p) => x(p[0])).y((p) => y(p[1])).defined((p) => isFinite(p[1]))(s.puntos)).style('fill', 'none').style('stroke', s.color).attr('stroke-width', s.discontinua ? 1.6 : 2.2)
+        .attr('stroke-dasharray', s.discontinua ? '5 4' : null).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
     }
     const guia = svg.append('line').attr('y1', 10).attr('y2', alto - 26).style('stroke', 'var(--cds-chart-axis)').attr('opacity', 0);
     svg.append('rect').attr('x', ml).attr('width', w - ml - mr).attr('y', 0).attr('height', alto - 20).style('fill', 'transparent')

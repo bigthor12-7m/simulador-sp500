@@ -105,8 +105,130 @@
 
   function invDe(aj) { return aj && aj.invModo === 'explicito' && aj.ronic != null ? { ronic: aj.ronic, lag: aj.lag || 1 } : null; }
 
-  // mul: {per_valor_mediana, ev_ebitda_valor_mediana}; si falta uno se usa el otro y, si faltan los dos, solo el DCF.
+  // valores por acción (medianas) de los métodos de múltiplos disponibles
+  function medianasMultiplos(mul) {
+    const xs = mul && mul.metodos ? mul.metodos.map((m) => m.valor && m.valor.med) : [mul && mul.per_valor_mediana, mul && mul.ev_ebitda_valor_mediana];
+    return xs.filter((x) => x != null && isFinite(x) && x > 0);
+  }
+  // valor central, bajo y alto: peso del modelo intrínseco + resto con la media de los múltiplos (como en el DCF)
+  function conciliar(emp, res, mul, par) {
+    const pr = par.prob;
+    const pond = pr.pes * res.pes.vps + pr.base * res.base.vps + pr.opt * res.opt.vps;
+    const meds = medianasMultiplos(mul), hay = meds.length > 0;
+    const mm = hay ? d3mean(meds) : null, pw = hay ? par.pesoDcf : 1;
+    return { pond, mm, pesoDcf: pw, central: pw * pond + (1 - pw) * (mm || 0),
+      bajo: pw * res.pes.vps + (1 - pw) * (hay ? Math.min(...meds) : 0), alto: pw * res.opt.vps + (1 - pw) * (hay ? Math.max(...meds) : 0) };
+  }
+
+  // ======================================================================= beneficio residual (bancos, seguros, eléctricas…)
+  // Por acción: valor = valor contable + VA[(ROE − Ke) × valor contable inicial de cada año] + valor terminal.
+  // ROE de los años 1-2 con el BPA del consenso; después converge a Ke + convergencia × (ROE del año 2 − Ke).
+  // El valor contable crece con el beneficio no repartido; el reparto converge al que sostiene g a largo plazo (1 − g / ROE).
+  function ke(emp, par, aj) {
+    const beta = aj && aj.beta != null ? aj.beta : emp.beta;
+    return { beta, ke: par.rf + beta * par.erp + (emp.prima_pais || 0) + (par.dwacc || 0) };
+  }
+  function riEsc(emp, i, k, g, fr, aj, roeFijo) {
+    const p = emp.ri, d = emp.anios_hasta_valoracion, dm = (aj && aj.dm) || 0;
+    const bv0 = p.bv0;
+    let bv = bv0, va = 0, roe2 = null, roeLT = null, payoutLT = null;
+    const filas = [];
+    for (let t = 1; t <= 10; t++) {
+      let roe;
+      if (t === 1) roe = p.bpa1[i] / bv;
+      else if (t === 2) {
+        roe = p.bpa2[i] / bv; roe2 = roe;
+        roeLT = (roeFijo != null ? roeFijo : k + fr * (roe2 - k)) + (roeFijo != null ? 0 : dm);
+        payoutLT = Math.min(1, Math.max(0, roeLT > 0 ? 1 - g / roeLT : 1));
+      } else roe = roe2 + (roeLT - roe2) * (t - 2) / 8;
+      const payout = t <= 2 ? p.payout0 : p.payout0 + (payoutLT - p.payout0) * (t - 2) / 8;
+      const bpa = roe * bv, ri = (roe - k) * bv, fd = Math.pow(1 + k, -(t - d));
+      va += ri * fd;
+      const dpa = bpa * payout;
+      filas.push({ anio: t, roe, bpa, dpa, payout, bvIni: bv, bv: bv + bpa - dpa, ri, va: ri * fd });
+      bv = bv + bpa - dpa;
+    }
+    const tv = (roeLT - k) * bv / (k - g), vaTv = tv * Math.pow(1 + k, -(10 - d));
+    const base = bv0 * Math.pow(1 + k, d);
+    const vps = base + va + vaTv;
+    return { vps, eq: vps * emp.acciones_m, bv0, base, va, vaTv, pesoTv: vaTv / vps, roeLT, roe2, filas, valido: k - g >= 0.005 };
+  }
+  function valorarRI(emp, mul, par, aj) {
+    const K = ke(emp, par, aj), k = K.ke, g = par.g;
+    const res = {};
+    ESC.forEach((sc, i) => { res[sc] = riEsc(emp, i, k, g, par.fr[sc], aj, null); });
+    const c = conciliar(emp, res, mul, par);
+    return Object.assign({ modelo: 'ri', W: { ke: k, kd: null, wd: 0, beta: K.beta, wacc: k }, w: k, g, res, cons: res, inv: null, ronicImpl: null, lag: 1,
+      pot: c.central / emp.cotizacion - 1, valido: ESC.every((sc) => res[sc].valido) && emp.ri.bv0 > 0 }, c);
+  }
+  // ROE a largo plazo que descuenta la cotización (caso base)
+  function roeImplicito(emp, par, aj, k) {
+    const f = (x) => riEsc(emp, 1, k, par.g, par.fr.base, aj, x).vps - emp.cotizacion;
+    return biseccion(f, -0.2, 1.0);
+  }
+
+  // ======================================================================= REIT: descuento del flujo disponible para el accionista (AFFO)
+  // AFFO ≈ FFO × 85 % (el resto, CapEx de mantenimiento). Crece en los años 1-2 como los ingresos del consenso y converge a g
+  // en el año 10; valor terminal de Gordon. Se descuenta el AFFO y no el dividendo: lo que no se reparte se reinvierte.
+  function reitEsc(emp, i, k, g, aj, gFijo) {
+    const p = emp.reit, d = emp.anios_hasta_valoracion, dg = (aj && aj.dg) || 0;
+    const g1 = gFijo != null ? gFijo : p.g1[i] + dg, g2 = gFijo != null ? gFijo : p.g2[i] + dg;
+    const gr = [g1, g2];
+    for (let t = 3; t <= 10; t++) gr.push(gFijo != null && t <= 5 ? gFijo : (gFijo != null ? gFijo + (g - gFijo) * (t - 5) / 5 : g2 + (g - g2) * (t - 2) / 8));
+    let dpa = p.affo0, va = 0;
+    const filas = [];
+    for (let t = 1; t <= 10; t++) {
+      dpa = dpa * (1 + gr[t - 1]);
+      const fd = Math.pow(1 + k, -(t - 0.5 - d));
+      va += dpa * fd;
+      const f = dpa / p.affo0;
+      filas.push({ anio: t, crecimiento: gr[t - 1], affo: dpa, dpa: p.dps0 * f, ffo: p.ffo_ps * f, va: dpa * fd });
+    }
+    const tv = dpa * (1 + g) / (k - g), vaTv = tv * Math.pow(1 + k, -(10 - d));
+    const vps = va + vaTv;
+    return { vps, eq: vps * emp.acciones_m, va, vaTv, pesoTv: vaTv / vps, filas, valido: k - g >= 0.005 };
+  }
+  function valorarREIT(emp, mul, par, aj) {
+    const K = ke(emp, par, aj), k = K.ke, g = par.g;
+    const res = {};
+    ESC.forEach((sc, i) => { res[sc] = reitEsc(emp, i, k, g, aj, null); });
+    const c = conciliar(emp, res, mul, par);
+    return Object.assign({ modelo: 'reit', W: { ke: k, kd: null, wd: 0, beta: K.beta, wacc: k }, w: k, g, res, cons: res, inv: null, ronicImpl: null, lag: 1,
+      pot: c.central / emp.cotizacion - 1, valido: ESC.every((sc) => res[sc].valido) }, c);
+  }
+  // crecimiento anual del AFFO (años 1-5) que descuenta la cotización
+  function crecDividendoImplicito(emp, par, aj, k) {
+    return biseccion((x) => reitEsc(emp, 1, k, par.g, aj, x).vps - emp.cotizacion, -0.3, 0.6);
+  }
+  function biseccion(f, lo, hi) {
+    let flo = f(lo);
+    if (!isFinite(flo) || flo * f(hi) >= 0) return null;
+    for (let i = 0; i < 100; i++) {
+      const mid = (lo + hi) / 2, fm = f(mid);
+      if ((fm > 0) === (flo > 0)) { lo = mid; flo = fm; } else hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+
+  // ======================================================================= interfaz común para la app
+  // valor del caso base con otra tasa de descuento (WACC o Ke) y otro g
+  function sensibilidadVps(emp, par, aj, v, tasa, g) {
+    if (emp.modelo === 'ri') return riEsc(emp, 1, tasa, g, par.fr.base, aj, null).vps;
+    if (emp.modelo === 'reit') return reitEsc(emp, 1, tasa, g, aj, null).vps;
+    return sensibilidad(emp, emp.trays, par, aj, tasa, g, v.res.base.roicT).vps;
+  }
+  // lo que descuenta la cotización: crecimiento de ventas (DCF), ROE a largo plazo (beneficio residual) o crecimiento del dividendo (REIT)
+  function implicito(emp, par, aj, v) {
+    if (!v.valido) return null;
+    if (emp.modelo === 'ri') return roeImplicito(emp, par, aj, v.w);
+    if (emp.modelo === 'reit') return crecDividendoImplicito(emp, par, aj, v.w);
+    return crecimientoImplicito(emp, emp.trays, par, aj, v.w, v.res.base.roicT);
+  }
+
+  // mul: {metodos: [...]} (o los campos antiguos per/ev_ebitda); si faltan, solo el modelo intrínseco.
   function valorar(emp, tray, mul, par, aj) {
+    if (emp.modelo === 'ri') return valorarRI(emp, mul, par, aj);
+    if (emp.modelo === 'reit') return valorarREIT(emp, mul, par, aj);
     const W = wacc(emp, par, aj), w = W.wacc, g = par.g, inv = invDe(aj);
     const cons = {};
     for (const sc of ESC) cons[sc] = dcf(emp, camino(tray[sc], aj), w, g, par.fr[sc], par.roicTope, par.metodoVt, null, null);
@@ -122,7 +244,7 @@
     }
     const pr = par.prob;
     const pond = pr.pes * res.pes.vps + pr.base * res.base.vps + pr.opt * res.opt.vps;
-    const meds = [mul && mul.per_valor_mediana, mul && mul.ev_ebitda_valor_mediana].filter((x) => x != null && isFinite(x) && x > 0);
+    const meds = medianasMultiplos(mul);
     const hayMul = meds.length > 0;
     const mm = hayMul ? d3mean(meds) : null;
     const pw = hayMul ? par.pesoDcf : 1;
@@ -130,7 +252,7 @@
     const bajo = pw * res.pes.vps + (1 - pw) * (hayMul ? Math.min(...meds) : 0);
     const alto = pw * res.opt.vps + (1 - pw) * (hayMul ? Math.max(...meds) : 0);
     const valido = ESC.every((sc) => res[sc].valido);
-    return { W, w, g, res, cons, pond, mm, central, bajo, alto, pot: central / emp.cotizacion - 1, valido, inv, ronicImpl, lag, pesoDcf: pw };
+    return { modelo: 'fcff', W, w, g, res, cons, pond, mm, central, bajo, alto, pot: central / emp.cotizacion - 1, valido, inv, ronicImpl, lag, pesoDcf: pw };
   }
   function d3mean(a) { return a.reduce((s, x) => s + x, 0) / a.length; }
 
@@ -153,5 +275,6 @@
     return (lo + hi) / 2;
   }
 
-  raiz.MOTOR = { ESC, trayectorias, wacc, camino, dcf, valorar, sensibilidad, crecimientoImplicito, ronicImplicito, valorSinCrecimiento };
+  raiz.MOTOR = { ESC, trayectorias, wacc, camino, dcf, valorar, sensibilidad, crecimientoImplicito, ronicImplicito, valorSinCrecimiento,
+    riEsc, reitEsc, roeImplicito, crecDividendoImplicito, sensibilidadVps, implicito };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -20,14 +20,15 @@ const r2 = (x, d = 4) => (x == null || !isFinite(x) ? null : Math.round(x * 10 *
 const res = {};
 for (const e of emp) {
   if (!e.valorada) continue;
-  const tray = MOTOR.trayectorias(e.tr);
+  const tray = e.modelo === 'ri' || e.modelo === 'reit' ? null : MOTOR.trayectorias(e.tr);
+  e.trays = tray;
   const aj = { beta: e.beta, dg: 0, dm: 0, invModo: 'consenso', ronic: null, lag: 1 };
   const v = MOTOR.valorar(e, tray, e.mu, par, aj);
-  const gi = v.valido ? MOTOR.crecimientoImplicito(e, tray, par, aj, v.w, v.res.base.roicT) : null;
+  const gi = MOTOR.implicito(e, par, aj, v);
   res[e.ticker] = {
     central: r2(v.central, 2), bajo: r2(v.bajo, 2), alto: r2(v.alto, 2), dcf: r2(v.pond, 2), multiplos: r2(v.mm, 2),
     pes: r2(v.res.pes.vps, 2), base: r2(v.res.base.vps, 2), opt: r2(v.res.opt.vps, 2), cotizacion: e.cotizacion,
-    potencial: r2(v.pot), wacc: r2(v.w), peso_vt: r2(v.res.base.pesoTv), crecimiento_implicito: r2(gi), valido: v.valido,
+    potencial: r2(v.pot), wacc: r2(v.w), peso_vt: r2(v.res.base.pesoTv), implicito: r2(gi), modelo: v.modelo, valido: v.valido,
   };
 }
 fs.writeFileSync(path.join(dir, 'resultados.json'), JSON.stringify(res));

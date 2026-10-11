@@ -64,7 +64,8 @@ window.APP = (function () {
     const [emp, par, est, hist] = await Promise.all(FICHEROS.map((f, i) => json(f, i >= 2)));
     const empresas = emp.map((e) => {
       const o = Object.assign({}, e);
-      if (o.valorada) o.trays = MOTOR.trayectorias(o.tr);
+      if (!o.modelo) o.modelo = 'fcff';
+      if (o.valorada && o.modelo === 'fcff') o.trays = MOTOR.trayectorias(o.tr);
       o.busca = A.sinAcentos(`${o.ticker} ${o.nombre} ${o.empresa}`);
       return o;
     });
@@ -129,6 +130,11 @@ window.APP = (function () {
     sin_multiplos: { t: 'Sin comparables con múltiplos válidos: valor central solo con DCF', grave: false },
     balance_antiguo: { t: 'Último balance de hace más de 7 meses', grave: false },
     datos_anteriores: { t: 'Sin datos nuevos de Yahoo esta semana: se mantienen los de la semana anterior', grave: false },
+    valor_contable_bajo: { t: 'ROE muy alto sobre un valor contable pequeño: el modelo de beneficio residual es poco fiable para esta empresa', grave: true },
+    beneficio_negativo: { t: 'Beneficio por acción previsto negativo', grave: true },
+    ffo_negativo: { t: 'FFO (beneficio + amortización − plusvalías) negativo', grave: true },
+    dividendo_no_cubierto: { t: 'El dividendo supera al FFO de los últimos doce meses', grave: false },
+    sin_dividendo: { t: 'Sin dividendo publicado: se usa el 70 % del FFO como referencia', grave: false },
   };
 
   // ---------------------------------------------------------------- comparador
@@ -156,7 +162,7 @@ window.APP = (function () {
     { id: 'erp', get: () => A.S.par.erp, set: (x) => (A.S.par.erp = x), fmt: (x) => A.pct(x, 2), def: () => A.DEF.erp },
     { id: 'dw', get: () => A.S.par.dwacc, set: (x) => (A.S.par.dwacc = x), fmt: (x) => A.pp(x, 2), def: () => 0 },
     { id: 'g', get: () => A.S.par.g, set: (x) => (A.S.par.g = x), fmt: (x) => A.pct(x, 2), def: () => A.DEF.g },
-    { id: 'pd', get: () => A.S.par.pesoDcf, set: (x) => (A.S.par.pesoDcf = x), fmt: (x) => `${A.pct(x, 0)} DCF · ${A.pct(1 - x, 0)} múltiplos`, def: () => A.DEF.pesoDcf },
+    { id: 'pd', get: () => A.S.par.pesoDcf, set: (x) => (A.S.par.pesoDcf = x), fmt: (x) => `${A.pct(x, 0)} modelo · ${A.pct(1 - x, 0)} múltiplos`, def: () => A.DEF.pesoDcf },
   ];
   function probs(cual, x) {
     const p = A.S.par.prob;
@@ -170,7 +176,7 @@ window.APP = (function () {
     ['Prima de riesgo +1 pp', (p) => { p.erp = A.DEF.erp + 0.01; }],
     ['g del 2 %', (p) => { p.g = 0.02; }],
     ['Más peso al pesimista (50/40/10)', (p) => { p.prob = { pes: 0.5, base: 0.4, opt: 0.1 }; }],
-    ['Solo DCF', (p) => { p.pesoDcf = 1; }],
+    ['Solo modelo intrínseco', (p) => { p.pesoDcf = 1; }],
     ['Solo múltiplos', (p) => { p.pesoDcf = 0; }],
     ['Valor terminal de Gordon', (p) => { p.metodoVt = 'gordon'; }],
   ];
@@ -207,7 +213,7 @@ window.APP = (function () {
     for (const b of document.querySelectorAll('#sv-vt button')) b.setAttribute('aria-pressed', String(b.dataset.vt === A.S.par.metodoVt));
     $('#sv-vt-d').textContent = 'Por defecto: inductores (ROIC)';
     const q = A.S.par;
-    $('#ap-sup-r').textContent = `rf ${A.pct(q.rf, 2)} · ERP ${A.pct(q.erp, 2)} · g ${A.pct(q.g, 2)} · ${A.pct(q.pesoDcf, 0)} DCF`;
+    $('#ap-sup-r').textContent = `rf ${A.pct(q.rf, 2)} · ERP ${A.pct(q.erp, 2)} · g ${A.pct(q.g, 2)} · ${A.pct(q.pesoDcf, 0)} modelo`;
   };
 
   // ---------------------------------------------------------------- navegación

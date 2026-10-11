@@ -3,9 +3,9 @@
   const { h, num, pct, usd, veces, mill, G } = A;
   const REFS = [
     { id: 'bajo', t: 'Valor bajo', d: 'Escenario pesimista combinado con el menor de los dos múltiplos: la referencia más prudente.', f: (v) => v.bajo },
-    { id: 'pes', t: 'DCF pesimista', d: 'Solo el flujo de caja descontado del escenario pesimista.', f: (v) => v.res.pes.vps },
-    { id: 'central', t: 'Valor central', d: 'DCF ponderado por escenarios y múltiplos de comparables.', f: (v) => v.central },
-    { id: 'base', t: 'DCF base', d: 'Solo el flujo de caja descontado del caso base.', f: (v) => v.res.base.vps },
+    { id: 'pes', t: 'Escenario pesimista', d: 'Solo el modelo intrínseco (DCF, beneficio residual o AFFO) del escenario pesimista, sin múltiplos.', f: (v) => v.res.pes.vps },
+    { id: 'central', t: 'Valor central', d: 'Modelo intrínseco ponderado por escenarios y múltiplos de comparables.', f: (v) => v.central },
+    { id: 'base', t: 'Caso base', d: 'Solo el modelo intrínseco (DCF, beneficio residual o AFFO) del caso base, sin múltiplos.', f: (v) => v.res.base.vps },
     { id: 'alto', t: 'Valor alto', d: 'Escenario optimista con el mayor de los múltiplos: la referencia menos exigente.', f: (v) => v.alto },
   ];
   const CAPS = [[0, 'Todas'], [10000, 'Más de 10.000 M$'], [50000, 'Más de 50.000 M$'], [200000, 'Más de 200.000 M$']];
@@ -14,7 +14,7 @@
     ['Graham clásico', { ref: 'bajo', ms: 0.33, crit: ['per', 'pb', 'ben', 'div'], minG: 0 }],
     ['Margen amplio sobre el valor central', { ref: 'central', ms: 0.33, crit: [], minG: 0 }],
     ['Calidad a buen precio', { ref: 'central', ms: 0.2, crit: ['ben', 'deuda', 'cbpa'], minG: 0 }],
-    ['Prudente: margen sobre el DCF pesimista', { ref: 'pes', ms: 0.15, crit: [], minG: 0 }],
+    ['Prudente: margen sobre el escenario pesimista', { ref: 'pes', ms: 0.15, crit: [], minG: 0 }],
   ];
   function estado() {
     if (!A.S.op) {
@@ -39,7 +39,7 @@
       const valor = ref.f(v);
       const ms = A.margenSeg(valor, e.cotizacion);
       const gr = A.graham(e);
-      const okCrit = op.crit.every((c) => (gr.items.find((i) => i.id === c) || {}).ok);
+      const okCrit = op.crit.every((c) => { const it = gr.items.find((i) => i.id === c) || {}; return it.ok || it.na; });
       out.push({ e, v, valor, ms, gr, pasa: ms != null && ms >= op.ms && okCrit && gr.puntos >= op.minG });
     }
     return out;
@@ -53,7 +53,7 @@
       h('h1', { class: 'sv-h1' }, 'Oportunidades de inversión en valor'),
       h('p', { class: 'sv-take' }, `${sel.length} ${sel.length === 1 ? 'empresa cotiza' : 'empresas cotizan'} con un margen de seguridad de al menos el ${pct(op.ms, 0)} sobre su ${ref.t.toLowerCase()}` +
         (op.crit.length || op.minG ? ' y cumplen los criterios de Graham elegidos' : '') + ` (de ${todas.length} valoraciones ${op.fiables ? 'fiables' : ''} analizadas).`),
-      h('p', { class: 'sv-meta' }, 'Margen de seguridad = 1 − cotización ÷ valor. Filtro para encontrar candidatas que estudiar a fondo: no es una recomendación de compra.')));
+      h('p', { class: 'sv-meta' }, 'Margen de seguridad = 1 − cotización ÷ valor. Filtro para encontrar candidatas que estudiar a fondo: no es una recomendación de compra. Los criterios de Graham que no se aplican a un tipo de empresa (p. ej. la liquidez en un banco) no la excluyen.')));
 
     // ---------------- filtros
     const segRef = h('div', { class: 'sv-seg ap-seg-w', role: 'group', 'aria-label': 'Valor de referencia' }, REFS.map((r) => {
@@ -117,7 +117,7 @@
     main.append(h('section', { class: 'sv-kpis' },
       A.kpi('Candidatas', String(sel.length), `de ${todas.length} valoraciones analizadas`),
       A.kpi('Margen de seguridad mediano', msMed == null ? '—' : pct(msMed, 0), `sobre el ${ref.t.toLowerCase()}`),
-      A.kpi('Puntuación de Graham mediana', sel.length ? `${num(A.mediana(sel.map((x) => x.gr.puntos)), 0)} de ${A.CRITERIOS.length}` : '—', 'criterios del inversor defensivo'),
+      A.kpi('Puntuación de Graham mediana', sel.length ? `${num(A.mediana(sel.map((x) => x.gr.puntos)), 0)}` : '—', 'criterios del inversor defensivo que cumplen'),
       A.kpi('Rentabilidad por dividendo mediana', sel.length ? pct(A.mediana(sel.map((x) => (x.e.graham || {}).div || 0)), 1) : '—', 'de las candidatas')));
 
     if (todas.length) main.append(A.tarjeta('Margen de seguridad frente al PER', `Cada punto es una empresa; en azul, las que pasan el filtro. A la derecha de la línea, la cotización está por debajo del ${ref.t.toLowerCase()}; abajo, PER de los últimos doce meses más bajo. Pulsa un punto para ver la empresa.`,

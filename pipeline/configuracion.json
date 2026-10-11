@@ -42,7 +42,19 @@
     "beta_relevada_max": 3.0,
     "beta_final_min": 0.6,
     "minimo_valoradas": 300,
-    "comparables_min_subindustria": 5
+    "comparables_min_subindustria": 5,
+    "pb_max": 10,
+    "pffo_max": 50,
+    "ri_payout_min": 0.2,
+    "ri_payout_max": 1.0,
+    "ri_crec_bpa_min": -0.3,
+    "ri_crec_bpa_max": 0.5,
+    "ri_banda_escenarios": 0.3,
+    "reit_crec_min": -0.1,
+    "reit_crec_max": 0.15,
+    "reit_banda_escenarios": 0.05,
+    "reit_affo_sobre_ffo": 0.85,
+    "ri_roe_max_fiable": 0.5
   },
   "rating_sintetico": {
     "_fuente": "Rating sintético por cobertura de intereses (EBIT / gastos financieros) para grandes empresas no financieras, con diferenciales de referencia aproximados de la tabla de A. Damodaran. Editable.",
@@ -149,23 +161,6 @@
         "CCC"
       ]
     ]
-  },
-  "fuera_de_alcance": {
-    "_nota": "Fase 1: no se valoran bancos, aseguradoras, gestoras ni REIT (necesitan un modelo de ROE frente a coste del capital o de valor de los activos).",
-    "subindustrias": {
-      "Diversified Banks": "Banca: se valorará con un modelo específico (fase 2)",
-      "Regional Banks": "Banca: se valorará con un modelo específico (fase 2)",
-      "Asset Management & Custody Banks": "Gestoras y bancos custodios: modelo específico (fase 2)",
-      "Investment Banking & Brokerage": "Banca de inversión: modelo específico (fase 2)",
-      "Consumer Finance": "Financiación al consumo: modelo específico (fase 2)",
-      "Life & Health Insurance": "Seguros: modelo específico (fase 2)",
-      "Multi-line Insurance": "Seguros: modelo específico (fase 2)",
-      "Property & Casualty Insurance": "Seguros: modelo específico (fase 2)",
-      "Reinsurance": "Seguros: modelo específico (fase 2)",
-      "Multi-Sector Holdings": "Holding con aseguradoras: modelo específico (fase 2)"
-    },
-    "sufijo_reit": "REITs",
-    "motivo_reit": "REIT: se valorará por flujos de operaciones y valor de los activos (fase 2)"
   },
   "clases_secundarias": {
     "GOOG": "GOOGL",
@@ -722,5 +717,25 @@
       "Agua",
       "Agua"
     ]
+  },
+  "modelos": {
+    "_nota": "Modelo de cada subindustria: 'fcff' (DCF de flujos de caja libres, por defecto), 'beneficio_residual' (valor contable + beneficio por encima del coste de los recursos propios) o 'reit' (descuento de dividendos, P/FFO y EV/EBITDA).",
+    "beneficio_residual": [
+      "Diversified Banks",
+      "Regional Banks",
+      "Asset Management & Custody Banks",
+      "Investment Banking & Brokerage",
+      "Consumer Finance",
+      "Life & Health Insurance",
+      "Multi-line Insurance",
+      "Property & Casualty Insurance",
+      "Reinsurance",
+      "Multi-Sector Holdings",
+      "Electric Utilities",
+      "Multi-Utilities",
+      "Gas Utilities",
+      "Water Utilities"
+    ],
+    "sufijo_reit": "REITs"
   }
 }

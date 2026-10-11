@@ -136,14 +136,10 @@ def datos_empresa(c, y, V, avisos_globales):
     e["cotizacion"] = px
     if not px:
         e["motivo"] = "Sin cotización en Yahoo Finance esta semana"; return e, None
-    # clasificación fuera del alcance de la fase 1
-    fa = CONF["fuera_de_alcance"]
+    # modelo de valoración según la subindustria
+    e["modelo"] = modelo_de(c["subindustria"])
     if c["ticker"] in CONF["clases_secundarias"]:
         e["motivo"] = f"Otra clase de acciones de la misma empresa: ver {CONF['clases_secundarias'][t]}"; e["principal"] = CONF["clases_secundarias"][t]
-    elif c["subindustria"] in fa["subindustrias"]:
-        e["motivo"] = fa["subindustrias"][c["subindustria"]]
-    elif c["subindustria"].endswith(fa["sufijo_reit"]):
-        e["motivo"] = fa["motivo_reit"]
 
     # ------------------------------------------------ cuenta de resultados TTM y balance
     ventas, f_ttm = S.ttm("TotalRevenue")
@@ -218,15 +214,19 @@ def datos_empresa(c, y, V, avisos_globales):
           "cbpa": (ep[-1] / ep[0] - 1) if len(ep) >= 3 and ep[0] and ep[0] > 0 and ep[-1] is not None else None,
           "cbpa_anios": len(ep) - 1 if len(ep) >= 3 else None}
     gr["per_pb"] = gr["per"] * gr["pb"] if gr["per"] and gr["pb"] else None
+    gr["deuda_patrimonio"] = deuda / patrimonio if patrimonio and patrimonio > 0 else None
     e["graham"] = gr
 
     if e["motivo"]:
         return e, None
+    if (moneda_fin and moneda_fin != "USD") or (pr.get("currency") and pr.get("currency") != "USD"):
+        e["avisos"].append("divisa")
+    if e["modelo"] in ("ri", "reit"):
+        e.update({"deuda_bruta": max(0.0, deuda), "deuda_financiera_neta": deuda - caja, "prima_pais": 0.0})
+        return (datos_ri if e["modelo"] == "ri" else datos_reit)(e, S, qs, V)
     falta = [n for n, x in (("ventas", ventas), ("beneficio operativo", ebit), ("acciones", acc)) if x is None]
     if falta or not ventas or ventas <= 0:
         e["motivo"] = "Datos financieros insuficientes en Yahoo Finance (" + ", ".join(falta or ["ventas"]) + ")"; return e, None
-    if (moneda_fin and moneda_fin != "USD") or (pr.get("currency") and pr.get("currency") != "USD"):
-        e["avisos"].append("divisa")
 
     # ------------------------------------------------ insumos del DCF (mismos nombres que el modelo de las 7M)
     if da is None: da = 0.0
@@ -270,6 +270,146 @@ def datos_empresa(c, y, V, avisos_globales):
         e["avisos"].append("pocos_analistas")
     e["_anc"] = anc
     e["consenso"] = {"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    return e, C
+
+
+def modelo_de(sub):
+    m = CONF["modelos"]
+    if sub in m["beneficio_residual"]: return "ri"
+    if sub.endswith(m["sufijo_reit"]): return "reit"
+    return "fcff"
+
+
+def bpa_anclas(C, f_ttm):
+    """BPA de los años 1 y 2 (doce meses desde el último trimestre publicado) en los tres escenarios. None si no hay consenso."""
+    if C.est("+1y", "eps") is None or C.n("+1y", "eps") < 2: return None
+    if C.est("0y", "eps") is None:
+        if C.est("0y", "rev") and C.est("+1y", "rev"):
+            e1 = C.tr["+1y"]["earningsEstimate"]; f = C.est("0y", "rev") / C.est("+1y", "rev")
+            e0 = C.tr["0y"].setdefault("earningsEstimate", {})
+            for k in ("avg", "low", "high"):
+                if raw(e1.get(k)) is not None: e0[k] = {"raw": raw(e1[k]) * f}
+        else: return None
+    E0 = C.fin("0y")
+    qrem = max(0, min(4, round((E0 - f_ttm).days / 91.31)))
+    ytd = [v for f, v in C.hist if f and v is not None and D(f) > E0 - dt.timedelta(days=350) and D(f) <= f_ttm + dt.timedelta(days=20)]
+    ytd = sum(ytd) if len(ytd) == 4 - qrem and qrem < 4 else (0.0 if qrem == 4 else None)
+    out = {}
+    for k in ("avg", "low", "high"):
+        ev = lambda p: C.est(p, "eps", k) if C.est(p, "eps", k) is not None else C.est(p, "eps")
+        e0y, e1y = ev("0y"), ev("+1y")
+        if qrem == 4: e1 = e0y
+        elif qrem == 0: e1 = e1y
+        elif qrem == 2 and C.fin("+1q") == E0 and ev("0q") is not None and ev("+1q") is not None: e1 = ev("0q") + ev("+1q") + e1y / 2
+        elif qrem == 1 and C.fin("0q") == E0 and ev("0q") is not None: e1 = ev("0q") + e1y * 3 / 4
+        else: e1 = (e0y - ytd if ytd is not None else e0y * qrem / 4) + e1y * (4 - qrem) / 4
+        g = clip(e1y / e0y - 1, R["ri_crec_bpa_min"], R["ri_crec_bpa_max"]) if e0y and e0y > 0 else 0.05
+        out[k] = (e1, e1y if qrem == 4 else e1 * (1 + g))
+    b1, b2 = out["avg"]
+    banda = R["ri_banda_escenarios"]
+    lo = (min(max(out["low"][0], b1 * (1 - banda)), b1), min(max(out["low"][1], b2 * (1 - banda)), b2))
+    hi = (max(min(out["high"][0], b1 * (1 + banda)), b1), max(min(out["high"][1], b2 * (1 + banda)), b2))
+    return {"bpa1": [lo[0], b1, hi[0]], "bpa2": [lo[1], b2, hi[1]], "qrem": qrem}
+
+
+def crec_anclas(C, S, ventas, f_ttm):
+    """Crecimiento de las ventas de los años 1 y 2 en los tres escenarios (misma regla que el DCF). None si no hay consenso."""
+    if not ventas or any(C.est(p, "rev") is None for p in ("0y", "+1y")) or C.n("+1y", "rev") < 2: return None
+    E0, E1 = C.fin("0y"), C.fin("+1y")
+    qrem = max(0, min(4, round((E0 - f_ttm).days / 91.31)))
+    q = S.ts.get("quarterlyTotalRevenue") or []
+    ytd_q = [v / 1e6 for f, v in q if D(f) > E0 - dt.timedelta(days=350) and D(f) <= f_ttm + dt.timedelta(days=5)]
+    ytd = sum(ytd_q) if len(ytd_q) == 4 - qrem and qrem < 4 else (0.0 if qrem == 4 else None)
+    out = {}
+    v0 = C.est("0y", "rev")
+    for k in ("avg", "low", "high"):
+        rv = lambda p: C.est(p, "rev", k) or C.est(p, "rev")
+        v0y, v1y = rv("0y"), rv("+1y")
+        s_ = (ytd / v0) if ytd and qrem in (1, 2, 3) else (4 - qrem) / 4
+        y1 = v0y if qrem == 4 else v1y if qrem == 0 else (v0y - (ytd if ytd is not None else v0y * (4 - qrem) / 4)) + v1y * s_
+        out[k] = [y1 / ventas - 1, v1y / v0 - 1]
+    return out
+
+
+def datos_ri(e, S, qs, V):
+    """Modelo de beneficio residual (bancos, aseguradoras, gestoras, financieras y eléctricas reguladas), por acción."""
+    C = Consenso(qs)
+    cse, f_bal = S.bal("CommonStockEquity")
+    if cse is None: cse, f_bal = S.bal("StockholdersEquity")
+    acc = e.get("acciones_m")
+    if not cse or cse <= 0 or not acc:
+        e["motivo"] = "Valor contable negativo o sin datos: no se puede aplicar el modelo de beneficio residual"; return e, None
+    bv0 = cse / acc
+    ni, f_ttm = S.ttm("NetIncomeCommonStockholders")
+    f_ttm = D(f_ttm or f_bal)
+    dv = abs(S.v("CashDividendsPaid", "ttm", 0.0) or 0.0); rp = abs(S.v("RepurchaseOfCapitalStock", "ttm", 0.0) or 0.0)
+    payout0 = clip((dv + rp) / ni, R["ri_payout_min"], R["ri_payout_max"]) if ni and ni > 0 else 0.6
+    hist = [v for f, v in C.hist if v is not None]
+    bpa_ttm = sum(hist) if len(hist) == 4 else (ni / acc if ni is not None else None)
+    anc = bpa_anclas(C, f_ttm)
+    if anc is not None:
+        b1 = anc["bpa1"][1]
+        if not (b1 > 0 and -0.2 < b1 / bv0 < 1.2): anc = None
+    if anc is None:
+        base = bpa_ttm if bpa_ttm is not None else 0.0
+        anc = {"bpa1": [base * 0.9, base, base * 1.1], "bpa2": [base * 0.9, base, base * 1.1], "qrem": None}
+        e["avisos"].append("sin_consenso")
+    elif C.n("+1y", "eps") < R["analistas_min"]:
+        e["avisos"].append("pocos_analistas")
+    if anc["bpa1"][1] <= 0: e["avisos"].append("beneficio_negativo")
+    elif anc["bpa1"][1] / bv0 > R["ri_roe_max_fiable"]: e["avisos"].append("valor_contable_bajo")
+    e.update({"fecha_balance": str(f_bal), "fecha_ttm": str(f_ttm), "anios_hasta_valoracion": max(0.0, (V - D(f_bal)).days / 365.25),
+              "patrimonio_comun": cse, "beneficio_ttm": ni, "dividendos_ttm": dv, "recompras_ttm": rp})
+    if (V - D(f_bal)).days > 200: e["avisos"].append("balance_antiguo")
+    e["ri"] = {"bv0": bv0, "bpa1": anc["bpa1"], "bpa2": anc["bpa2"], "payout0": payout0, "bpa_ttm": bpa_ttm,
+               "roe_ttm": ni / cse if ni is not None else None, "tbv": (S.v("TangibleBookValue", "bal") or 0) / acc}
+    e["consenso"] = {"n": C.n("+1y", "eps"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    e["_ri"] = True
+    return e, C
+
+
+def datos_reit(e, S, qs, V):
+    """Modelo de REIT: descuento de dividendos con crecimiento del consenso de ingresos; FFO = beneficio + amortización − plusvalías."""
+    C = Consenso(qs)
+    sd = qs.get("summaryDetail") or {}
+    acc = e.get("acciones_m")
+    ni, f_ttm = S.ttm("NetIncomeCommonStockholders")
+    da = next((x for x in (S.v("DepreciationAndAmortization"), S.v("DepreciationAmortizationDepletion"), S.v("ReconciledDepreciation")) if x is not None), None)
+    # partidas no recurrentes: plusvalías por venta de inmuebles, deterioros, etc. (se quitan del FFO)
+    inusual = S.v("TotalUnusualItems")
+    if inusual is None: inusual = -(S.v("GainLossOnSaleOfPPE", "ttm", 0.0) or 0.0)
+    if ni is None or da is None or not acc:
+        e["motivo"] = "Datos insuficientes para calcular el FFO"; return e, None
+    ffo = ni + da - inusual
+    gan = -inusual
+    ffo_ps = ffo / acc
+    dps0 = raw(sd.get("dividendRate")) or raw(sd.get("trailingAnnualDividendRate"))
+    if not dps0 or dps0 <= 0:
+        dps0 = max(0.0, 0.7 * ffo_ps); e["avisos"].append("sin_dividendo")
+    ventas, fv = S.ttm("TotalRevenue")
+    f_ttm = D(f_ttm or fv or e["fecha_balance"])
+    anc = crec_anclas(C, S, ventas, f_ttm)
+    lo_, hi_ = R["reit_crec_min"], R["reit_crec_max"]
+    if anc is None or not (-0.3 < anc["avg"][0] < 0.5):
+        tr = S.ts.get("trailingTotalRevenue") or []
+        g = tr[-1][1] / tr[-2][1] - 1 if len(tr) >= 2 and tr[-2][1] else 0.03
+        g = clip(g, lo_, hi_)
+        anc = {"avg": [g, g], "low": [g - 0.03, g - 0.03], "high": [g + 0.03, g + 0.03]}
+        e["avisos"].append("sin_consenso")
+    banda = R["reit_banda_escenarios"]
+    b = [clip(x, lo_, hi_) for x in anc["avg"]]
+    l = [clip(min(max(anc["low"][i], b[i] - banda), b[i]), lo_, hi_) for i in range(2)]
+    h = [clip(max(min(anc["high"][i], b[i] + banda), b[i]), lo_, hi_) for i in range(2)]
+    if ffo <= 0: e["avisos"].append("ffo_negativo")
+    elif dps0 > 1.05 * ffo_ps: e["avisos"].append("dividendo_no_cubierto")
+    f_bal = e["fecha_balance"]
+    e.update({"fecha_ttm": str(f_ttm), "anios_hasta_valoracion": max(0.0, (V - D(f_bal)).days / 365.25), "beneficio_ttm": ni})
+    if (V - D(f_bal)).days > 200: e["avisos"].append("balance_antiguo")
+    affo_ps = R["reit_affo_sobre_ffo"] * ffo_ps
+    e["reit"] = {"dps0": dps0, "ffo_ps": ffo_ps, "affo0": affo_ps, "ffo": ffo, "g1": [l[0], b[0], h[0]], "g2": [l[1], b[1], h[1]],
+                 "cobertura": ffo_ps / dps0 if dps0 else None, "ebitda": e.get("ebitda_ttm"), "plusvalias": gan}
+    e["consenso"] = {"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
+    e["_reit"] = True
     return e, C
 
 
@@ -459,6 +599,31 @@ def multiplos(e, F, por_sub, por_ind, por_sec):
     return fila, peers
 
 
+def _rango(md):
+    return {"min": None, "med": md, "max": None} if md is not None else None
+
+
+def multiplos_gen(e, F, grupos, defs):
+    """Múltiplos de comparables con el mismo modelo: subindustria (5 o más), industria (3 o más) o sector."""
+    t = e["ticker"]
+    validos = lambda g: [x for x in g if x["ticker"] != t and F.get(x["ticker"]) and any(F[x["ticker"]].get(d[2]) for d in defs)]
+    nivel, peers = "subindustria", validos(grupos[0])
+    if len(peers) < R.get("comparables_min_subindustria", 5): nivel, peers = "industria", validos(grupos[1])
+    if len(peers) < R["comparables_min"]: nivel, peers = "sector", validos(grupos[2])
+    if len(peers) > R["comparables_max"]:
+        lc = math.log(max(e.get("cap") or 1, 1))
+        peers = sorted(peers, key=lambda x: abs(math.log(max(x.get("cap") or 1, 1)) - lc))[: R["comparables_max"]]
+    metodos = []
+    for id_, nombre, key, fv in defs:
+        xs = sorted(F[p["ticker"]][key] for p in peers if F[p["ticker"]].get(key) is not None)
+        if len(xs) < 2 or fv is None:
+            metodos.append({"id": id_, "n": nombre, "mult": None, "valor": None}); continue
+        md = stt.median(xs)
+        val = lambda x: (fv(x) if fv(x) > 0 else None)
+        metodos.append({"id": id_, "n": nombre, "mult": {"min": xs[0], "med": md, "max": xs[-1]}, "valor": {"min": val(xs[0]), "med": val(md), "max": val(xs[-1])}})
+    return {"comparables": [p["ticker"] for p in peers], "nivel": nivel, "metodos": metodos}
+
+
 # ======================================================================= principal
 def redondear(o, d=6):
     if isinstance(o, float): return round(o, d) if math.isfinite(o) else None
@@ -515,7 +680,7 @@ def main():
                  "cotizacion": raw(((y.get("qs") or {}).get("price") or {}).get("regularMarketPrice"))}
             C = None
         emp.append(e)
-        if C is not None and "_anc" in e: cons[e["ticker"]] = C
+        if C is not None: cons[e["ticker"]] = C
 
     cand = [e for e in emp if "_anc" in e]
     previas = [e for e in emp if "datos_anteriores" in (e.get("avisos") or []) and e.get("valorada")]
@@ -569,6 +734,61 @@ def main():
         if not mu or (mu.get("per_valor_mediana") is None and mu.get("ev_ebitda_valor_mediana") is None): e["avisos"].append("sin_multiplos")
         f = F.get(e["ticker"]) or {}
         e["adelantados"] = {"per": f.get("per_fwd"), "ev_ebitda": f.get("ev_ebitda_fwd"), "bpa_ntm": f.get("eps_ntm"), "ev_ebitda_ttm": f.get("evt")}
+        mu = e["mu"]
+        e["mu"]["metodos"] = [
+            {"id": "per", "n": "PER adelantado", "mult": _rango(mu.get("per_mediana")), "valor": {"min": mu.get("per_valor_min"), "med": mu.get("per_valor_mediana"), "max": mu.get("per_valor_max")}},
+            {"id": "ev_ebitda", "n": "EV/EBITDA adelantado", "mult": _rango(mu.get("ev_ebitda_mediana")), "valor": {"min": mu.get("ev_ebitda_valor_min"), "med": mu.get("ev_ebitda_valor_mediana"), "max": mu.get("ev_ebitda_valor_max")}}]
+
+    # ---------------- fase 2: beneficio residual y REIT
+    for modelo in ("ri", "reit"):
+        lista_m = [e for e in emp if e.get("_" + modelo)]
+        gs, gi_, gc = {}, {}, {}
+        for e in lista_m:
+            gs.setdefault(e["subindustria_gics"], []).append(e); gi_.setdefault(e["industria"], []).append(e); gc.setdefault(e["sector"], []).append(e)
+        todos = lista_m
+        def med_beta(e):
+            for g in (gi_[e["industria"]], gc[e["sector"]], todos):
+                xs = [clip(x["beta_yahoo"], R["beta_min"], R["beta_max"]) for x in g if x.get("beta_yahoo") is not None and math.isfinite(x["beta_yahoo"])]
+                if len(xs) >= 5: return stt.median(xs)
+            return 1.0
+        for e in lista_m:
+            # beta: media de la de Yahoo y la mediana de su industria (sin desapalancar: en estos negocios la deuda es parte de la actividad)
+            bm = med_beta(e)
+            by = clip(e["beta_yahoo"], R["beta_min"], R["beta_max"]) if e.get("beta_yahoo") is not None and math.isfinite(e["beta_yahoo"]) else bm
+            e["beta_sector_apalancada"] = round(bm, 3)
+            e["beta"] = round(max((by + bm) / 2, R["beta_final_min"]), 2)
+            C = cons.get(e["ticker"])
+            if modelo == "ri":
+                eps = C.ntm("eps", V) if C else None
+                per = e["cotizacion"] / eps if eps and eps > 0 and C.n("+1y", "eps") >= R["analistas_min"] else None
+                if per and per > R["per_max"]: per = None
+                pb = e["cotizacion"] / e["ri"]["bv0"] if e["ri"]["bv0"] > 0 else None
+                if pb and pb > R["pb_max"]: pb = None
+                F[e["ticker"]] = {"per": per, "pb": pb, "eps_ntm": eps}
+                e["adelantados"] = {"per": per, "pb": pb, "bpa_ntm": eps}
+            else:
+                pffo = e["cotizacion"] / e["reit"]["ffo_ps"] if e["reit"]["ffo_ps"] > 0 else None
+                if pffo and pffo > R["pffo_max"]: pffo = None
+                ts = (Y.get(e["ticker"]) or {}).get("ts") or {}
+                evs, ev, mc = ts.get("trailingEnterprisesValueEBITDARatio"), ts.get("trailingEnterpriseValue"), ts.get("trailingMarketCap")
+                evt = evs[-1][1] if evs else None
+                if evt is not None and not (0 < evt <= R["ev_ebitda_max"]): evt = None
+                nd = (ev[-1][1] - mc[-1][1]) / 1e6 if ev and mc else e["deuda_financiera_neta"]
+                e["reit"]["nd"] = nd
+                F[e["ticker"]] = {"pffo": pffo, "ev_ebitda": evt}
+                e["adelantados"] = {"pffo": pffo, "ev_ebitda_ttm": evt, "rent_dividendo": e["reit"]["dps0"] / e["cotizacion"]}
+        for e in lista_m:
+            if modelo == "ri":
+                eps = F[e["ticker"]]["eps_ntm"]; bv = e["ri"]["bv0"]
+                defs = [("per", "PER adelantado", "per", (lambda x, eps=eps: x * eps) if eps and eps > 0 else None),
+                        ("pb", "Precio / valor contable", "pb", lambda x, bv=bv: x * bv)]
+            else:
+                ffo, eb, nd, acc = e["reit"]["ffo_ps"], e["reit"]["ebitda"], e["reit"]["nd"], e["acciones_m"]
+                defs = [("pffo", "P/FFO", "pffo", (lambda x, f=ffo: x * f) if ffo > 0 else None),
+                        ("ev_ebitda", "EV/EBITDA", "ev_ebitda", (lambda x, eb=eb, nd=nd, acc=acc: (x * eb - nd) / acc) if eb and eb > 0 else None)]
+            e["mu"] = multiplos_gen(e, F, (gs[e["subindustria_gics"]], gi_[e["industria"]], gc[e["sector"]]), defs)
+            if not any(m["valor"] and m["valor"]["med"] for m in e["mu"]["metodos"]): e["avisos"].append("sin_multiplos")
+            e["valorada"] = True
 
     # salida
     desc = {}
@@ -578,7 +798,7 @@ def main():
         if apf:
             desc[e["ticker"]] = {"d": (apf.get("longBusinessSummary") or "")[:1400], "web": apf.get("website"), "empleados": apf.get("fullTimeEmployees"),
                                   "ciudad": apf.get("city"), "pais": apf.get("country")}
-        e.pop("_anc", None)
+        for k in ("_anc", "_ri", "_reit"): e.pop(k, None)
     nval = sum(1 for e in emp if e.get("valorada"))
     if nval < R.get("minimo_valoradas", 300):
         raise SystemExit(f"Solo {nval} empresas valoradas: la descarga parece incompleta; no se sobrescriben los datos.")
