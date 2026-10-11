@@ -48,7 +48,9 @@ def descargar(ciks, anios=11):
                         r = s.get(url, timeout=(10, 40))
                         estados[r.status_code] = estados.get(r.status_code, 0) + 1
                         if r.status_code == 404: datos = []; break
-                        if r.status_code in (403, 401): break   # bloqueado: no tiene sentido reintentar
+                        if r.status_code in (403, 401):   # bloqueado: no tiene sentido reintentar
+                            estados.setdefault("respuesta", r.text[:400]); estados.setdefault("servidor", r.headers.get("Server"))
+                            break
                         r.raise_for_status(); datos = r.json().get("data", []); break
                     except Exception as ex:
                         estados[type(ex).__name__] = estados.get(type(ex).__name__, 0) + 1
