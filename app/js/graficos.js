@@ -415,4 +415,116 @@
       .on('mousemove', (ev, p) => tipEn(tip, cont, ev, opts.tip ? opts.tip(p) : [[p.n, null, 'sv-tip-h']]))
       .on('mouseleave', () => tip.style('opacity', 0));
   };
+
+  // ---------------------------------------------------------------- series temporales (cotización de 5 años, seguimiento)
+  // series: [{n, color, puntos: [[Date, y], ...], discontinua?, fmtTip?}] ; opts.refs: [{v, n, color}] líneas horizontales
+  G.temporal = function (cont, series, opts = {}) {
+    series = series.filter((s) => s.puntos.length);
+    if (!series.length) { cont.replaceChildren(h('p', { class: 'sv-card-n' }, opts.vacio || 'Sin datos.')); return; }
+    const alto = opts.alto || 240;
+    const { svg, tip, w } = G.lienzo(cont, alto);
+    const refs = (opts.refs || []).filter((r) => r.v != null && isFinite(r.v));
+    const ys = series.flatMap((s) => s.puntos.map((p) => p[1])).concat(refs.map((r) => r.v)).filter((v) => v != null && isFinite(v));
+    const lo = d3.min(ys), hi = d3.max(ys);
+    const y = d3.scaleLinear().domain([opts.cero ? Math.min(0, lo) : lo - (hi - lo) * 0.04, hi + (hi - lo) * 0.04 || lo + 1]).nice().range([alto - 26, 12]);
+    const fmt = opts.fmtY || ((d) => num(d, 0));
+    const ml = G.medir(svg, y.ticks(5).map(fmt), 11) + 10;
+    const mr = refs.length ? Math.min(150, G.medir(svg, refs.map((r) => r.n), 11) + 14) : 14;
+    const fechas = series.flatMap((s) => s.puntos.map((p) => p[0]));
+    let [d0, d1] = d3.extent(fechas);
+    if (+d0 === +d1) { d0 = new Date(+d0 - 7 * 864e5); d1 = new Date(+d1 + 7 * 864e5); }
+    const x = d3.scaleUtc().domain([d0, d1]).range([ml + 6, w - mr]);
+    ejeY(svg, y, ml, w - mr, 5, fmt);
+    const anios = (d1 - d0) / 864e5 > 500;
+    svg.selectAll('text.xt').data(x.ticks(Math.max(2, Math.floor((w - ml - mr) / 80)))).join('text').attr('x', (t) => x(t)).attr('y', alto - 6).attr('text-anchor', 'middle')
+      .attr('font-size', 11).style('fill', 'var(--color-fg-muted)').text(d3.utcFormat(anios ? '%Y' : '%-d/%-m/%y'));
+    for (const r of refs) {
+      svg.append('line').attr('x1', ml).attr('x2', w - mr).attr('y1', y(r.v)).attr('y2', y(r.v)).style('stroke', r.color || C1).attr('stroke-width', 1.5).attr('stroke-dasharray', '6 4');
+      svg.append('text').attr('x', w - mr + 6).attr('y', y(r.v)).attr('dy', '0.35em').attr('font-size', 11).style('fill', 'var(--color-fg)').text(r.n);
+    }
+    for (const s of series) {
+      if (s.puntos.length > 1 && !s.soloPuntos) svg.append('path').attr('d', d3.line().x((p) => x(p[0])).y((p) => y(p[1])).defined((p) => p[1] != null && isFinite(p[1]))(s.puntos))
+        .style('fill', 'none').style('stroke', s.color).attr('stroke-width', s.discontinua ? 1.5 : 2).attr('stroke-dasharray', s.discontinua ? '5 4' : null).attr('stroke-linejoin', 'round');
+      if (s.puntos.length === 1 || s.soloPuntos) svg.selectAll(null).data(s.puntos).join('circle').attr('cx', (p) => x(p[0])).attr('cy', (p) => y(p[1])).attr('r', 4).style('fill', s.color).style('stroke', 'var(--color-panel)').attr('stroke-width', 1.5);
+    }
+    const todas = [...new Set(fechas.map((d) => +d))].sort((a, b) => a - b);
+    const guia = svg.append('line').attr('y1', 12).attr('y2', alto - 26).style('stroke', 'var(--cds-chart-axis)').attr('opacity', 0);
+    svg.append('rect').attr('x', ml).attr('width', Math.max(0, w - ml - mr)).attr('y', 0).attr('height', alto - 20).style('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [mx] = d3.pointer(ev);
+        const t = +x.invert(mx);
+        const k = todas[Math.min(todas.length - 1, Math.max(0, d3.bisectLeft(todas, t)))];
+        const k2 = todas[Math.max(0, d3.bisectLeft(todas, t) - 1)];
+        const kk = Math.abs(k2 - t) < Math.abs(k - t) ? k2 : k;
+        guia.attr('x1', x(kk)).attr('x2', x(kk)).attr('opacity', 1);
+        const filas = [[(opts.prefijo || '') + fecha(new Date(kk).toISOString()), null, 'sv-tip-h']];
+        for (const s of series) {
+          let p = null, best = Infinity;
+          for (const q of s.puntos) { const d = Math.abs(+q[0] - kk); if (d < best) { best = d; p = q; } }
+          if (p && best < 8 * 864e5 && p[1] != null) filas.push([`${s.n}: ${(s.fmtTip || opts.fmtTip || fmt)(p[1])}`, s.color]);
+        }
+        tipEn(tip, cont, ev, filas);
+      })
+      .on('mouseleave', () => { tip.style('opacity', 0); guia.attr('opacity', 0); });
+  };
+
+  // ---------------------------------------------------------------- barras verticales por año (historia de la SEC)
+  // filas: [{a: '2016', v}] ; opts: {fmt, color, alto}
+  G.anios = function (cont, filas, opts = {}) {
+    const alto = opts.alto || 170;
+    const { svg, tip, w } = G.lienzo(cont, alto);
+    const vals = filas.filter((f) => f.v != null && isFinite(f.v));
+    if (!vals.length) { cont.replaceChildren(h('p', { class: 'sv-card-n' }, 'Sin datos.')); return; }
+    const fmt = opts.fmt || ((d) => num(d, 0));
+    const y = d3.scaleLinear().domain([Math.min(0, d3.min(vals, (f) => f.v)), Math.max(0, d3.max(vals, (f) => f.v))]).nice().range([alto - 22, 10]);
+    const ml = G.medir(svg, y.ticks(3).map(fmt), 11) + 10;
+    const x = d3.scaleBand().domain(filas.map((f) => f.a)).range([ml, w - 4]).padding(0.22);
+    ejeY(svg, y, ml, w - 4, 3, fmt);
+    const paso = Math.ceil(filas.length / Math.max(2, Math.floor((w - ml) / 34)));
+    svg.selectAll('text.xt').data(filas.filter((f, i) => (filas.length - 1 - i) % paso === 0)).join('text').attr('x', (f) => x(f.a) + x.bandwidth() / 2).attr('y', alto - 6)
+      .attr('text-anchor', 'middle').attr('font-size', 10.5).style('fill', 'var(--color-fg-muted)').text((f) => (w < 420 ? "'" + f.a.slice(2) : f.a));
+    const g = svg.selectAll('g.b').data(filas).join('g');
+    g.append('rect').attr('x', (f) => x(f.a)).attr('width', x.bandwidth()).attr('y', 0).attr('height', alto - 22).style('fill', 'transparent');
+    g.filter((f) => f.v != null && isFinite(f.v)).append('rect').attr('x', (f) => x(f.a)).attr('width', x.bandwidth()).attr('y', (f) => y(Math.max(0, f.v)))
+      .attr('height', (f) => Math.max(1, Math.abs(y(f.v) - y(0)))).attr('rx', 2)
+      .style('fill', (f) => (f.v < 0 ? 'var(--color-bad)' : opts.color || C1)).attr('fill-opacity', 0.85);
+    g.on('mousemove', (ev, f) => tipEn(tip, cont, ev, [[`${opts.n || ''} ${f.a}`.trim(), null, 'sv-tip-h'], [f.v == null ? 'Sin dato' : (opts.fmtTip || fmt)(f.v)]]))
+      .on('mouseleave', () => tip.style('opacity', 0));
+  };
+
+  // ---------------------------------------------------------------- mapa del mercado (treemap por sector, tamaño = capitalización)
+  // grupos: [{n, hijos: [{id, n, cap, pot, gris}]}]
+  G.mapa = function (cont, grupos, opts = {}) {
+    const ancho = Math.max(280, cont.clientWidth || 600);
+    const alto = opts.alto || (ancho < 600 ? 520 : Math.round(Math.min(620, ancho * 0.56)));
+    const { svg, tip, w } = G.lienzo(cont, alto);
+    const raiz = d3.hierarchy({ hijos: grupos }, (d) => d.hijos).sum((d) => (d.hijos ? 0 : Math.max(0, d.cap || 0))).sort((a, b) => b.value - a.value);
+    d3.treemap().tile(d3.treemapSquarify.ratio(1.25)).size([w, alto]).paddingOuter(1).paddingInner(1)
+      .paddingTop((d) => (d.depth === 1 && d.x1 - d.x0 > 60 && d.y1 - d.y0 > 50 ? 15 : 1)).round(true)(raiz);
+    const ok = G.colorDe('var(--color-ok)'), bad = G.colorDe('var(--color-bad)'), neutro = G.colorDe('var(--cds-chart-muted)'), fondo = G.colorDe('var(--color-bg)');
+    const tope = opts.tope || 0.5;
+    const color = (d) => {
+      if (d.gris || d.pot == null) return d3.interpolateRgb(fondo, neutro)(0.45);
+      const t = Math.min(1, Math.abs(d.pot) / tope);
+      return d3.interpolateRgb(d3.interpolateRgb(fondo, neutro)(0.25), d.pot >= 0 ? ok : bad)(0.25 + 0.75 * t);
+    };
+    const sec = svg.selectAll('g.s').data(raiz.children || []).join('g');
+    sec.append('rect').attr('x', (d) => d.x0).attr('y', (d) => d.y0).attr('width', (d) => d.x1 - d.x0).attr('height', (d) => d.y1 - d.y0).style('fill', 'var(--color-panel)');
+    sec.filter((d) => d.x1 - d.x0 > 60 && d.y1 - d.y0 > 50).append('text').attr('x', (d) => d.x0 + 4).attr('y', (d) => d.y0 + 11).attr('font-size', 10.5).attr('font-weight', 600)
+      .style('fill', 'var(--color-fg-muted)').text((d) => d.data.n)
+      .each(function (d) { const t = d3.select(this); let s = d.data.n; while (this.getComputedTextLength() > d.x1 - d.x0 - 8 && s.length > 3) { s = s.slice(0, -2); t.text(s + '…'); } });
+    const hojas = svg.selectAll('g.h').data(raiz.leaves()).join('g').style('cursor', opts.clic ? 'pointer' : 'default');
+    hojas.append('rect').attr('x', (d) => d.x0).attr('y', (d) => d.y0).attr('width', (d) => Math.max(0, d.x1 - d.x0)).attr('height', (d) => Math.max(0, d.y1 - d.y0))
+      .style('fill', (d) => color(d.data));
+    const conTxt = hojas.filter((d) => d.x1 - d.x0 >= 30 && d.y1 - d.y0 >= 15);
+    const tam = (d) => Math.max(9, Math.min(15, Math.min((d.x1 - d.x0) / 3.6, (d.y1 - d.y0) / 2.6)));
+    conTxt.append('text').attr('x', (d) => (d.x0 + d.x1) / 2).attr('y', (d) => (d.y0 + d.y1) / 2 - (d.y1 - d.y0 >= 34 ? tam(d) * 0.45 : 0)).attr('dy', '0.35em').attr('text-anchor', 'middle')
+      .attr('font-size', tam).attr('font-weight', 600).style('fill', 'var(--color-fg)').style('pointer-events', 'none').text((d) => d.data.id);
+    conTxt.filter((d) => d.y1 - d.y0 >= 34 && d.x1 - d.x0 >= 40).append('text').attr('x', (d) => (d.x0 + d.x1) / 2).attr('y', (d) => (d.y0 + d.y1) / 2 + tam(d) * 0.75).attr('dy', '0.35em')
+      .attr('text-anchor', 'middle').attr('font-size', (d) => Math.max(8.5, tam(d) * 0.78)).style('fill', 'var(--color-fg)').style('pointer-events', 'none')
+      .text((d) => (d.data.pot == null ? '' : pct(d.data.pot, 0, true)));
+    hojas.on('click', (ev, d) => opts.clic && opts.clic(d.data))
+      .on('mousemove', (ev, d) => tipEn(tip, cont, ev, opts.tip ? opts.tip(d.data, d.parent.data) : [[d.data.n, null, 'sv-tip-h']]))
+      .on('mouseleave', () => tip.style('opacity', 0));
+  };
 })(window.APP);

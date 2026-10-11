@@ -11,6 +11,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -33,11 +34,16 @@ jobs:
           node-version: "20"
       - name: Instalar dependencias
         run: pip install -r pipeline/requirements.txt
-      - name: Descargar la lista del S&P 500 y los datos de Yahoo Finance
+      - name: Descargar la lista del S&P 500 y los datos de Yahoo Finance y de la SEC
         run: python pipeline/descargar.py --salida /tmp/brutos
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       - name: Aplicar las reglas del modelo
         run: python pipeline/procesar.py --brutos /tmp/brutos --salida app/datos
-      - name: Valorar con el motor de la app y añadir la semana al histórico
+      - name: Valorar con el motor de la app, añadir la semana al histórico y al seguimiento de las estrategias
+        env:
+          AVISOS_MD: ${{ runner.temp }}/avisos_semana.md
+          PROPIETARIO: ${{ github.repository_owner }}
         run: node pipeline/calcular.js app/datos
       - name: Guardar los datos nuevos en el repositorio
         run: |
@@ -45,6 +51,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/datos
           if git diff --cached --quiet; then echo "Sin cambios"; else git commit -q -m "Datos de la semana del $(date -u +%F)" && git push; fi
+      - name: Avisos por correo (issue de GitHub asignada al propietario)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          f="${{ runner.temp }}/avisos_semana.md"
+          if [ -s "$f" ]; then
+            gh issue create --title "Avisos de la semana del $(date -u +%d/%m/%Y)" --body-file "$f" --assignee "${{ github.repository_owner }}" \
+              || gh issue create --title "Avisos de la semana del $(date -u +%d/%m/%Y)" --body-file "$f" || echo "No se pudo crear el aviso"
+          else
+            echo "Sin avisos esta semana"
+          fi
       - name: Guardar los datos brutos en la rama brutos (para revisar)
         run: |
           cd /tmp/brutos

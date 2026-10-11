@@ -1,6 +1,6 @@
 // Simulador S&P 500 · arranque, instalación y funcionamiento sin conexión.
 (function (A) {
-  A.VERSION = '1.1.0';
+  A.VERSION = '1.2.0';
   const $ = A.$;
   const v = $('#ap-version'); if (v) v.textContent = `App ${A.VERSION}.`;
   const sup = $('#ap-sup');

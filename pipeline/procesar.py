@@ -216,6 +216,7 @@ def datos_empresa(c, y, V, avisos_globales):
     gr["per_pb"] = gr["per"] * gr["pb"] if gr["per"] and gr["pb"] else None
     gr["deuda_patrimonio"] = deuda / patrimonio if patrimonio and patrimonio > 0 else None
     e["graham"] = gr
+    e["piotroski"] = piotroski(S)
 
     if e["motivo"]:
         return e, None
@@ -257,13 +258,17 @@ def datos_empresa(c, y, V, avisos_globales):
         x = (deuda / ebitda) if ebitda and ebitda > 0 else 99
         rating = next(n for lim, n in rs["por_deuda_ebitda"] if x <= lim) if x < 99 else "B"
         dif = next(s for lim, n, s in rs["tramos"] if n == rating)
-    e.update({"rating": rating, "diferencial": dif, "cobertura": cob})
+    e.update({"rating": rating, "diferencial": dif, "cobertura": cob, "ppe": S.v("NetPPE", "bal", 0.0), "nof": nof})
     gr["cobertura"] = cob
 
     # ------------------------------------------------ consenso: anclas de los años 1-2
     C = Consenso(qs)
-    anc = anclas(e, C, S, tax, pre, gi, ii, sbc)
-    if anc is None:
+    perimetro = cambio_perimetro(C, S)
+    anc = None if perimetro else anclas(e, C, S, tax, pre, gi, ii, sbc)
+    if perimetro:
+        anc = anclas_sin_consenso(e, S)
+        e["avisos"].append("cambio_perimetro"); e["perimetro"] = perimetro
+    elif anc is None:
         anc = anclas_sin_consenso(e, S)
         e["avisos"].append("sin_consenso")
     elif C.n("+1y", "rev") < R["analistas_min"]:
@@ -271,6 +276,56 @@ def datos_empresa(c, y, V, avisos_globales):
     e["_anc"] = anc
     e["consenso"] = {"n": C.n("+1y", "rev"), "fin_ejercicio": str(C.fin("0y")) if C.fin("0y") else None}
     return e, C
+
+
+def cambio_perimetro(C, S):
+    """Detecta un cambio de perímetro (fusión o adquisición) que el consenso ya incluye y los estados financieros todavía no:
+    salto brusco entre el crecimiento del último trimestre publicado y el previsto para el siguiente, o una base del
+    consenso (ingresos del mismo trimestre del año anterior) distinta de la publicada. Devuelve un texto o None."""
+    q = S.ts.get("quarterlyTotalRevenue") or []
+    e0 = C.tr.get("0q")
+    if not e0 or len(q) < 5 or not e0.get("endDate"): return None
+    re_ = e0.get("revenueEstimate") or {}
+    est, ya = raw(re_.get("avg")), raw(re_.get("yearAgoRevenue"))
+    if not est or not ya or ya <= 0: return None
+    g_cons = est / ya - 1
+    g_last = q[-1][1] / q[-5][1] - 1 if q[-5][1] > 0 else None
+    if g_last is not None and g_last > -0.9:
+        salto = (1 + g_cons) / (1 + g_last)
+        if salto > 1.5 or salto < 0.6:
+            return f"el consenso prevé un crecimiento del {g_cons:.0%} para el próximo trimestre frente al {g_last:.0%} del último publicado"
+    objetivo = D(e0["endDate"]) - dt.timedelta(days=365)
+    mismo = [v for f, v in q if abs((D(f) - objetivo).days) <= 20]
+    if mismo and mismo[0] > 0 and abs(ya / mismo[0] - 1) > 0.2:
+        return "el consenso parte de unos ingresos del año anterior distintos de los publicados (cifras pro forma)"
+    return None
+
+
+def piotroski(S):
+    """Puntuación F de Piotroski con los dos últimos ejercicios anuales de Yahoo. Cada señal: True, False o None (sin datos)."""
+    def serie(k):
+        return {f: v for f, v in S.anual(k) if v is not None}
+    ni, ta, cfo, ca, cl = serie("NetIncomeCommonStockholders"), serie("TotalAssets"), serie("OperatingCashFlow"), serie("CurrentAssets"), serie("CurrentLiabilities")
+    gp, rev, ltd, sh = serie("GrossProfit"), serie("TotalRevenue"), serie("LongTermDebt"), serie("DilutedAverageShares")
+    fechas = sorted(set(ni) & set(ta))
+    if len(fechas) < 2: return None
+    t1, t0 = fechas[-1], fechas[-2]
+    div = lambda a, b: a / b if a is not None and b else None
+    roa1, roa0 = div(ni[t1], ta[t1]), div(ni[t0], ta[t0])
+    cmp = lambda a, b, op: None if a is None or b is None else op(a, b)
+    lev = lambda t: div(ltd.get(t, 0.0), ta.get(t))
+    d = {
+        "roa": cmp(roa1, 0, lambda a, b: a > b),
+        "cfo": cmp(cfo.get(t1), 0, lambda a, b: a > b),
+        "droa": cmp(roa1, roa0, lambda a, b: a > b),
+        "devengo": cmp(cfo.get(t1), ni.get(t1), lambda a, b: a > b),
+        "deuda": cmp(lev(t1), lev(t0), lambda a, b: a <= b),
+        "liquidez": cmp(div(ca.get(t1), cl.get(t1)), div(ca.get(t0), cl.get(t0)), lambda a, b: a > b),
+        "acciones": cmp(sh.get(t1), sh.get(t0), lambda a, b: a <= b * 1.005),
+        "margen": cmp(div(gp.get(t1), rev.get(t1)), div(gp.get(t0), rev.get(t0)), lambda a, b: a > b),
+        "rotacion": cmp(div(rev.get(t1), ta.get(t1)), div(rev.get(t0), ta.get(t0)), lambda a, b: a > b),
+    }
+    return {"f": sum(1 for v in d.values() if v), "n": sum(1 for v in d.values() if v is not None), "d": d, "ejercicio": t1}
 
 
 def modelo_de(sub):
@@ -388,14 +443,16 @@ def datos_reit(e, S, qs, V):
         dps0 = max(0.0, 0.7 * ffo_ps); e["avisos"].append("sin_dividendo")
     ventas, fv = S.ttm("TotalRevenue")
     f_ttm = D(f_ttm or fv or e["fecha_balance"])
-    anc = crec_anclas(C, S, ventas, f_ttm)
+    perimetro = cambio_perimetro(C, S)
+    anc = None if perimetro else crec_anclas(C, S, ventas, f_ttm)
+    if perimetro: e["avisos"].append("cambio_perimetro"); e["perimetro"] = perimetro
     lo_, hi_ = R["reit_crec_min"], R["reit_crec_max"]
     if anc is None or not (-0.3 < anc["avg"][0] < 0.5):
         tr = S.ts.get("trailingTotalRevenue") or []
         g = tr[-1][1] / tr[-2][1] - 1 if len(tr) >= 2 and tr[-2][1] else 0.03
         g = clip(g, lo_, hi_)
         anc = {"avg": [g, g], "low": [g - 0.03, g - 0.03], "high": [g + 0.03, g + 0.03]}
-        e["avisos"].append("sin_consenso")
+        if not perimetro: e["avisos"].append("sin_consenso")
     banda = R["reit_banda_escenarios"]
     b = [clip(x, lo_, hi_) for x in anc["avg"]]
     l = [clip(min(max(anc["low"][i], b[i] - banda), b[i]), lo_, hi_) for i in range(2)]
@@ -790,6 +847,38 @@ def main():
             if not any(m["valor"] and m["valor"]["med"] for m in e["mu"]["metodos"]): e["avisos"].append("sin_multiplos")
             e["valorada"] = True
 
+    # ---------------- fórmula mágica de Greenblatt (no financieras ni eléctricas)
+    eleg = [e for e in emp if e.get("valorada") and e.get("modelo") == "fcff" and e.get("sector_gics") not in ("Financials", "Utilities")
+            and (e.get("ebit_contable") or 0) > 0 and e.get("cap")]
+    for e in eleg:
+        ev = e["cap"] + e.get("deuda_financiera_neta", 0) + e.get("minoritarios", 0) + e.get("preferentes", 0)
+        cap_op = max(e.get("nof") or 0.0, 0.0) + (e.get("ppe") or 0.0)
+        e["_ey"] = e["ebit_contable"] / ev if ev > 0 else None
+        e["_roc"] = e["ebit_contable"] / cap_op if cap_op > 0 else None
+    eleg = [e for e in eleg if e["_ey"] is not None and e["_roc"] is not None]
+    for clave in ("_ey", "_roc"):
+        for i, e in enumerate(sorted(eleg, key=lambda x: -x[clave])): e[clave + "_r"] = i + 1
+    for i, e in enumerate(sorted(eleg, key=lambda x: (x["_ey_r"] + x["_roc_r"], x["_ey_r"]))):
+        e["greenblatt"] = {"ey": e["_ey"], "roc": e["_roc"], "pos": i + 1, "n": len(eleg)}
+    for e in emp:
+        for k in ("_ey", "_roc", "_ey_r", "_roc_r"): e.pop(k, None)
+
+    # ---------------- historia de 10 años (SEC) y criterios de Graham a 10 años
+    historia = historia_sec(br, emp, lista, sal)
+    for e in emp:
+        h = historia.get(e["ticker"])
+        if h and e.get("graham") is not None: e["graham"].update(graham10(h))
+
+    # ---------------- cotizaciones semanales de 5 años (un fichero por empresa, para cargarlo solo al abrir su ficha)
+    dp = sal / "precios"; dp.mkdir(exist_ok=True)
+    for t, y in list(Y.items()):
+        px = y.get("px")
+        if px: json.dump([[f, round(c, 2)] for f, c in px], open(dp / (t.replace("^", "_") + ".json"), "w"), separators=(",", ":"))
+    sp500 = raw((((Y.get("^GSPC") or {}).get("qs") or {}).get("price") or {}).get("regularMarketPrice"))
+
+    # ---------------- valoración revisada de las 7 Magníficas (Simulador 7M)
+    revisadas_7m(br, emp)
+
     # salida
     desc = {}
     for e in emp:
@@ -814,9 +903,99 @@ def main():
               "fuente_lista": lista.get("fuente"), "componentes": len(emp), "valoradas": nval,
               "no_valoradas": {m: n for m, n in _contar(e.get("motivo") for e in emp if not e.get("valorada")).items()},
               "sin_consenso": [e["ticker"] for e in emp if "sin_consenso" in (e.get("avisos") or [])],
-              "fallos_descarga": diag.get("fallos", {}), "avisos": avisos}
+              "fallos_descarga": diag.get("fallos", {}), "avisos": avisos, "sp500": sp500,
+              "historia_sec": bool(historia), "revisadas_7m": sorted(e["ticker"] for e in emp if e.get("revisada"))}
     json.dump(estado, open(sal / "estado.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"Mercado del {V} · {len(emp)} componentes · {nval} valoradas · rf {rf:.4f}")
+
+
+SPLITS = [2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 30, 40, 50]
+
+
+def historia_sec(br, emp, lista, sal):
+    """historia.json: {ticker: {años, ventas, beneficio, ebit, bpa, dpa, patrimonio, cfo}} (importes en M$, por acción ajustado
+    por splits). Si esta semana no hay datos de la SEC, se conserva el fichero anterior."""
+    f = br / "sec.json.gz"
+    previo = sal / "historia.json"
+    if not f.exists():
+        try: return json.load(open(previo, encoding="utf-8"))
+        except Exception: return {}
+    h = json.load(gzip.open(f, "rt", encoding="utf-8"))
+    años = [str(a) for a in h["años"]]
+    por_cik = {int(c["cik"]): c["ticker"] for c in lista["componentes"] if c.get("cik")}
+    out = {}
+    for cik, d in h["empresas"].items():
+        t = por_cik.get(int(cik))
+        if not t: continue
+        serie = lambda k, esc=1e6: [(d.get(k, {}).get(a) / esc if d.get(k, {}).get(a) is not None else None) for a in años]
+        bpa, dpa, ni = serie("bpa", 1), serie("dpa", 1), serie("beneficio")
+        # ajuste por splits: las acciones implícitas (beneficio / BPA) saltan un múltiplo entero de un año a otro
+        f_ = 1.0
+        for i in range(len(años) - 2, -1, -1):
+            a1 = ni[i + 1] / bpa[i + 1] if ni[i + 1] and bpa[i + 1] and ni[i + 1] * bpa[i + 1] > 0 else None
+            a0 = ni[i] / bpa[i] if ni[i] and bpa[i] and ni[i] * bpa[i] > 0 else None
+            if a1 and a0:
+                r = a1 / a0
+                k = min(SPLITS, key=lambda s_: abs(r / s_ - 1)) if r >= 1.8 else None
+                if k and abs(r / k - 1) < 0.25: f_ *= k
+            if bpa[i] is not None: bpa[i] /= f_
+            if dpa[i] is not None: dpa[i] /= f_
+        dv = serie("dividendos")
+        out[t] = {"años": [int(a) for a in años], "ventas": serie("ventas"), "beneficio": ni, "ebit": serie("ebit"), "bpa": bpa,
+                  "dpa": dpa, "dividendos": dv, "patrimonio": serie("patrimonio"), "cfo": serie("cfo")}
+        out[t] = redondear(out[t], 4)
+    # las clases secundarias comparten historia con la principal
+    for e in emp:
+        if e.get("principal") and e["principal"] in out: out[e["ticker"]] = out[e["principal"]]
+    json.dump(out, open(previo, "w", encoding="utf-8"), separators=(",", ":"))
+    return out
+
+
+def graham10(h):
+    """Criterios de Graham con 10 años: beneficios todos los años, dividendos ininterrumpidos y crecimiento del BPA de al
+    menos un tercio (medias de tres años al principio y al final)."""
+    ni = [x for x in h["beneficio"] if x is not None]
+    pagos = [(a or 0) > 0 or (b or 0) > 0 for a, b in zip(h["dpa"], h["dividendos"])]
+    bpa = [x for x in h["bpa"] if x is not None]
+    out = {}
+    if len(ni) >= 6:
+        out.update({"ben_pos": sum(1 for x in ni if x > 0), "ben_n": len(ni), "ben_fuente": "SEC"})
+    disp = [i for i, (a, b) in enumerate(zip(h["dpa"], h["dividendos"])) if a is not None or b is not None]
+    if len(disp) >= 6:
+        out.update({"div_anios": sum(1 for i in disp if pagos[i]), "div_n": len(disp)})
+    if len(bpa) >= 6:
+        ini, fin = sum(bpa[:3]) / 3, sum(bpa[-3:]) / 3
+        out.update({"cbpa": (fin / ini - 1) if ini > 0 else None, "cbpa_anios": len(bpa) - 3, "cbpa_medias": True})
+    return out
+
+
+def revisadas_7m(br, emp):
+    """Para las 7 Magníficas, los datos y supuestos revisados del Simulador 7M (mismo motor), que la app usa por defecto."""
+    f = br / "7m.json"
+    if not f.exists(): return
+    try:
+        m = json.load(open(f, encoding="utf-8"))
+        par = m["parametros"][0]
+        tray = {}
+        for r in m["trayectorias"]:
+            d = tray.setdefault(r["ticker"], {}).setdefault(r["escenario"], {"gr": [], "mg": [], "da": [], "cx": [], "nf": []})
+            d["gr"].append(r["crecimiento"]); d["mg"].append(r["margen_ebit"]); d["da"].append(r["amortizacion_ventas"])
+            d["cx"].append(r["capex_ventas"]); d["nf"].append(r["nof_ventas"])
+        mul = {r["ticker"]: r for r in m["multiplos"]}
+        campos = ["acciones_m", "ventas_ttm", "ebit_ttm", "da_ttm", "nof_ventas_ttm", "capital_invertido", "anios_hasta_valoracion", "tipo_impositivo",
+                  "deuda_financiera_neta", "deuda_bruta", "minoritarios", "preferentes", "inversiones_no_operativas", "beta", "prima_pais",
+                  "fecha_balance", "capex_ttm", "inversion_neta_ttm"]
+        por_t = {e["ticker"]: e for e in emp}
+        for r in m["empresas"]:
+            e = por_t.get(r["ticker"])
+            if not e or not e.get("valorada") or r["ticker"] not in tray: continue
+            mu = dict(mul.get(r["ticker"], {}))
+            mu["comparables"] = [x.strip() for x in str(mu.get("comparables", "")).split(",") if x.strip()]
+            mu["nivel"] = "revisado"
+            e["revisada"] = {"emp": {k: r[k] for k in campos if k in r}, "diferencial": par.get("diferencial_deuda"),
+                             "trays": tray[r["ticker"]], "mu": mu, "fecha": (m.get("estado") or {}).get("valoracion_completa") or par.get("fecha_valoracion")}
+    except Exception as ex:
+        print("No se pudieron usar las valoraciones revisadas de las 7M:", ex)
 
 
 def _contar(it):

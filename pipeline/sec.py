@@ -3,11 +3,12 @@
 La SEC pide identificarse en el User-Agent; se usa la dirección noreply de GitHub del proyecto.
 Si la SEC no responde (o rechaza las peticiones), se abandona pronto: la app conserva la historia de la semana anterior.
 """
-import datetime as dt, time
+import datetime as dt, os, time
 
 UA = "simulador-sp500 bigthor12-7m@users.noreply.github.com"
 # alternativas que se prueban si la SEC rechaza la primera (la SEC exige "Nombre contacto@dominio")
-UAS = [UA, "Simulador SP500 bigthor12-7m@users.noreply.github.com",
+# SEC_USER_AGENT (secreto del repositorio, opcional): "Nombre correo@dominio" de contacto, que es lo que pide la SEC
+UAS = ([os.environ["SEC_USER_AGENT"].strip()] if os.environ.get("SEC_USER_AGENT", "").strip() else []) + [UA, "Simulador SP500 bigthor12-7m@users.noreply.github.com",
        "bigthor12-7m simulador-sp500 (bigthor12-7m@users.noreply.github.com)",
        "Mozilla/5.0 (compatible; SimuladorSP500/1.0; +https://github.com/bigthor12-7m/simulador-sp500; bigthor12-7m@users.noreply.github.com)"]
 
@@ -18,10 +19,10 @@ def elegir_ua(s, url):
     for ua in UAS:
         try:
             r = s.get(url, headers={"User-Agent": ua}, timeout=(10, 40))
-            prueba[ua] = r.status_code
+            prueba["secreto" if ua == os.environ.get("SEC_USER_AGENT", "").strip() else ua] = r.status_code
             if r.status_code not in (401, 403): return ua, prueba
         except Exception as ex:
-            prueba[ua] = type(ex).__name__
+            prueba["secreto" if ua == os.environ.get("SEC_USER_AGENT", "").strip() else ua] = type(ex).__name__
         time.sleep(1)
     return None, prueba
 # concepto -> lista de (taxonomía, etiqueta, unidad, instantáneo); se usa la primera que exista para cada empresa y año

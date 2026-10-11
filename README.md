@@ -4,11 +4,16 @@ App web instalable (PC y móvil) para valorar cualquier empresa del S&P 500 con 
 
 - **Buscador** de empresas por nombre o ticker (tecla `/`).
 - **Navegación por sectores GICS**: mercado → sector → industria → empresa.
-- **Ficha de cada empresa**: valor central, escenarios, sensibilidad WACC × g, crecimiento que descuenta la cotización, retorno de la nueva inversión, comparables, criterios de Graham y consenso de analistas, con supuestos ajustables.
-- **Informe** imprimible de cada empresa (se guarda en PDF desde el navegador).
+- **Mapa del mercado**: todas las empresas por sector, con un tamaño proporcional a su capitalización y el color de su potencial.
+- **Ficha de cada empresa**: valor central, escenarios, sensibilidad WACC × g, crecimiento que descuenta la cotización, retorno de la nueva inversión, cotización de 5 años frente al S&P 500, historia de 10 años de la SEC, comparables, criterios de Graham, puntuación F de Piotroski, puesto en la fórmula mágica de Greenblatt y consenso de analistas, con supuestos ajustables.
+- **Excel con fórmulas** de la valoración de cada empresa (supuestos, tres escenarios, valor terminal, múltiplos y valor central).
+- **Informe** imprimible de cada empresa en castellano o en catalán (se guarda en PDF desde el navegador).
 - **Comparador** de hasta 5 empresas.
-- **Oportunidades**: filtro de inversión en valor (margen de seguridad de Benjamin Graham) sobre el valor que elijas (bajo, DCF pesimista, central, DCF base o alto), con los criterios del inversor defensivo, y descarga en CSV.
-- **Supuestos generales** (tipo sin riesgo, prima de riesgo, g, probabilidades de los escenarios, peso del DCF) que recalculan todas las empresas al momento.
+- **Oportunidades**: filtro de inversión en valor (margen de seguridad de Benjamin Graham) sobre el valor que elijas (bajo, DCF pesimista, central, DCF base o alto), con los criterios del inversor defensivo (a 10 años), Piotroski y Greenblatt, y descarga en CSV.
+- **Seguimiento semanal** de cuatro estrategias frente al S&P 500, empresas que sigues y **avisos por correo** (un *issue* de GitHub cada lunes con las altas y bajas de cada estrategia y los movimientos de las empresas de `pipeline/avisos.json`).
+- **Supuestos generales** (tipo sin riesgo, prima de riesgo, g, probabilidades de los escenarios, peso del DCF) que recalculan todas las empresas al momento; se recuerdan en el navegador y se pueden guardar como escenarios con nombre.
+- **Las 7 Magníficas** usan por defecto su valoración revisada en el [Simulador 7M](https://bigthor12-7m.github.io/simulador-7mag/) (se puede volver al modelo automático).
+- **Glosario** y ayudas (ⓘ) junto a los términos técnicos.
 
 La app está en `app/` y se publica en GitHub Pages. Funciona sin conexión con los últimos datos descargados.
 
@@ -24,10 +29,12 @@ Abre la dirección de GitHub Pages del repositorio (`https://<usuario>.github.io
 
 Cada lunes por la mañana, GitHub ejecuta el flujo **Actualizar datos** (`.github/workflows/actualizar.yml`):
 
-1. `pipeline/descargar.py`: lista del S&P 500 con su clasificación GICS (Wikipedia) y, de Yahoo Finance, cotización, beta, consenso de analistas, estados financieros (últimos doce meses, último balance y cuatro años de historia) y múltiplos de cada empresa.
-2. `pipeline/procesar.py`: aplica las reglas del modelo a todas las empresas (ver `pipeline/configuracion.json`) y escribe `app/datos/`.
-3. `pipeline/calcular.js`: valora todas las empresas con el mismo motor que la app (`app/motor.js`) y añade la semana al histórico.
-4. Guarda los datos, deja los datos brutos en la rama `brutos` (para revisarlos) y vuelve a publicar la app.
+1. `pipeline/descargar.py`: lista del S&P 500 con su clasificación GICS (Wikipedia); de Yahoo Finance, cotización, beta, consenso de analistas, estados financieros (últimos doce meses, último balance y cuatro años de historia), múltiplos y cotizaciones semanales de 5 años; de la SEC (`pipeline/sec.py`), diez años de ventas, beneficio, BPA, dividendos, patrimonio y flujo de explotación; y la valoración revisada de las 7 Magníficas que publica el Simulador 7M.
+2. `pipeline/procesar.py`: aplica las reglas del modelo a todas las empresas (ver `pipeline/configuracion.json`), calcula Graham a 10 años, Piotroski y Greenblatt, detecta fusiones recientes y escribe `app/datos/`.
+3. `pipeline/calcular.js`: valora todas las empresas con el mismo motor que la app (`app/motor.js`), añade la semana al histórico y al seguimiento de las estrategias y prepara los avisos.
+4. Guarda los datos, abre el aviso semanal (issue), deja los datos brutos en la rama `brutos` (para revisarlos) y vuelve a publicar la app.
+
+Para cambiar las empresas de los avisos por correo, edita `pipeline/avisos.json` (lista `seguir` y `umbral` de variación); la página *Seguimiento* de la app te deja copiar tu lista.
 
 Si una empresa no se puede descargar una semana, se mantienen sus datos de la semana anterior y se avisa en la app. Si la descarga falla de forma general (menos de 300 empresas valoradas), no se sobrescribe nada.
 
@@ -46,19 +53,22 @@ Para actualizar a mano: pestaña **Actions** → **Actualizar datos** → **Run 
 - **REIT**: descuento del **AFFO** (≈ 85 % del FFO = beneficio + amortización − plusvalías), que crece como los ingresos del consenso en los años 1–2 y converge a g; múltiplos P/FFO y EV/EBITDA.
 - **Beta de financieras, eléctricas y REIT**: media de la de Yahoo y la mediana de su industria (sin desapalancar), mínimo 0,6.
 
-Las reglas son automáticas y no sustituyen el análisis de cada empresa: fusiones recientes, partidas extraordinarias o cambios de negocio pueden distorsionar una valoración. La app marca las valoraciones poco fiables.
+- **Fusiones, adquisiciones y consensos no comparables**: si el consenso del próximo trimestre prevé un salto de ventas incompatible con el último trimestre publicado, o parte de unas ventas del año anterior distintas de las publicadas (pro forma), los años 1–2 siguen la tendencia histórica y la valoración se marca como poco fiable para revisarla.
+- **Graham a 10 años, Piotroski y Greenblatt**: beneficios y dividendos de los 10 últimos ejercicios (SEC) y crecimiento del BPA de al menos un tercio (medias de 3 años); nueve señales de Piotroski con los dos últimos ejercicios; fórmula mágica por EBIT / EV y EBIT / (activo fijo + NOF).
+
+Las reglas son automáticas y no sustituyen el análisis de cada empresa: partidas extraordinarias o cambios de negocio pueden distorsionar una valoración. La app marca las valoraciones poco fiables.
 
 ## Estructura
 
 | Carpeta | Contenido |
 |---|---|
 | `app/` | La app que se publica: página, estilos, motor de valoración (`motor.js`), código de las páginas (`js/`), datos, iconos, fuentes y el *service worker* |
-| `app/datos/` | Empresas (datos, supuestos y múltiplos), descripciones, parámetros de mercado, resultados por defecto, histórico semanal y estado de la última actualización |
+| `app/datos/` | Empresas (datos, supuestos y múltiplos), descripciones, parámetros de mercado, resultados por defecto, histórico semanal, seguimiento de las estrategias, historia de la SEC (`historia.json`), cotizaciones de 5 años (`precios/`) y estado de la última actualización |
 | `pipeline/` | Descarga, reglas del modelo (`configuracion.json`, `procesar.py`) y valoración por defecto (`calcular.js`) |
 | `.github/workflows/` | Actualización semanal, descarga de datos brutos y publicación en GitHub Pages |
 
 ## Fuentes y licencias
 
-Datos: Yahoo Finance y la lista de componentes del S&P 500 de Wikipedia. Fuentes tipográficas Inter y Lora (SIL Open Font License 1.1) y la librería d3 (ISC).
+Datos: Yahoo Finance, SEC (EDGAR XBRL) y la lista de componentes del S&P 500 de Wikipedia. Fuentes tipográficas Inter y Lora (SIL Open Font License 1.1) y la librería d3 (ISC).
 
 Herramienta con fines formativos: no constituye una recomendación de inversión.

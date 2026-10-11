@@ -60,27 +60,45 @@ window.APP = (function () {
       return await r.json();
     } catch (e) { if (opcional) return null; throw e; }
   }
+  A.json = json;
+  const preparar = (e) => {
+    const o = Object.assign({}, e);
+    if (!o.modelo) o.modelo = 'fcff';
+    if (o.valorada && o.modelo === 'fcff' && !o.trays) o.trays = MOTOR.trayectorias(o.tr);
+    o.busca = A.sinAcentos(`${o.ticker} ${o.nombre} ${o.empresa}`);
+    return o;
+  };
   A.cargar = async function () {
     const [emp, par, est, hist] = await Promise.all(FICHEROS.map((f, i) => json(f, i >= 2)));
-    const empresas = emp.map((e) => {
-      const o = Object.assign({}, e);
-      if (!o.modelo) o.modelo = 'fcff';
-      if (o.valorada && o.modelo === 'fcff') o.trays = MOTOR.trayectorias(o.tr);
-      o.busca = A.sinAcentos(`${o.ticker} ${o.nombre} ${o.empresa}`);
-      return o;
-    });
-    const porT = Object.fromEntries(empresas.map((e) => [e.ticker, e]));
+    const empresas = emp.map(preparar);
+    // las 7 Magníficas: versión automática y versión revisada en el Simulador 7M (por defecto, la revisada)
+    const auto = {}, rev = {};
+    for (const e of empresas) if (e.valorada && e.revisada && e.modelo === 'fcff') { auto[e.ticker] = e; rev[e.ticker] = preparar(CRIT.aplicarRevisada(e)); }
     const p = Array.isArray(par) ? par[0] : par;
-    A.D = { emp: empresas, porT, pa: p, estado: est || {}, hist: hist || { fechas: [], series: {} }, desc: null };
+    A.D = { emp: empresas, porT: {}, pa: p, estado: est || {}, hist: hist || { fechas: [], series: {} }, desc: null, auto, rev };
     A.DEF = defectos(p);
-    A.S = { par: copia(A.DEF), aj: {}, cmp: leerCmp().filter((t) => porT[t]), op: null };
-    // jerarquía sector > industria > subindustria
+    A.S = { par: copia(A.DEF), aj: {}, cmp: [], op: null, rev: leer('sp-rev', true) !== false, seg: leer('sp-seg', []) };
+    montarEmpresas();
+    A.S.cmp = leerCmp().filter((t) => A.D.porT[t]);
+    A.S.seg = (Array.isArray(A.S.seg) ? A.S.seg : []).filter((t) => A.D.porT[t]);
+    restaurarSupuestos();
+  };
+  // coloca en la lista la versión de cada una de las 7 que toca y rehace los índices
+  function montarEmpresas() {
+    const D = A.D;
+    D.emp = D.emp.map((e) => (D.rev[e.ticker] ? (A.S.rev ? D.rev[e.ticker] : D.auto[e.ticker]) : e));
+    D.porT = Object.fromEntries(D.emp.map((e) => [e.ticker, e]));
     const jer = {};
-    for (const e of empresas) {
+    for (const e of D.emp) {
       const s = (jer[e.sector] = jer[e.sector] || {});
       (s[e.industria] = s[e.industria] || []).push(e);
     }
-    A.D.jer = jer;
+    D.jer = jer;
+  }
+  A.usarRevisadas = function (on) {
+    A.S.rev = !!on; escribir('sp-rev', A.S.rev);
+    for (const t of Object.keys(A.D.rev)) delete A.S.aj[t];   // la beta por defecto cambia con la versión
+    montarEmpresas(); cacheDef = null; A.cambio();
   };
   A.descripciones = async function () {
     if (!A.D.desc) A.D.desc = (await json('descripciones', true)) || {};
@@ -94,6 +112,71 @@ window.APP = (function () {
   }
   const copia = (o) => JSON.parse(JSON.stringify(o));
   A.copia = copia;
+  function leer(k, def) { try { const x = localStorage.getItem(k); return x == null ? def : JSON.parse(x); } catch (e) { return def; } }
+  function escribir(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  A.leer = leer; A.escribir = escribir;
+
+  // ---------------------------------------------------------------- supuestos guardados en este navegador
+  // Solo se guarda lo que difiere de los valores por defecto, para que lo demás siga a los datos de cada semana.
+  const CAMPOS_PAR = ['rf', 'erp', 'g', 'dwacc', 'pesoDcf', 'metodoVt', 'prob'];
+  const CAMPOS_AJ = ['beta', 'dg', 'dm', 'invModo', 'ronic', 'lag'];
+  function instantanea() {
+    const par = {}, aj = {};
+    for (const k of CAMPOS_PAR) if (JSON.stringify(A.S.par[k]) !== JSON.stringify(A.DEF[k])) par[k] = copia(A.S.par[k]);
+    for (const [t, a] of Object.entries(A.S.aj)) {
+      const e = A.D.porT[t]; if (!e || !A.ajCambiado(t)) continue;
+      const d = A.ajDef(e), o = {};
+      for (const k of CAMPOS_AJ) if (a[k] !== d[k]) o[k] = a[k];
+      if (Object.keys(o).length) aj[t] = o;
+    }
+    return { par, aj };
+  }
+  function aplicarInstantanea(x) {
+    A.S.par = copia(A.DEF);
+    for (const k of CAMPOS_PAR) if (x && x.par && x.par[k] !== undefined) A.S.par[k] = copia(x.par[k]);
+    A.S.aj = {};
+    for (const [t, o] of Object.entries((x && x.aj) || {})) { const e = A.D.porT[t]; if (e && e.valorada) A.S.aj[t] = Object.assign(A.ajDef(e), o); }
+  }
+  function restaurarSupuestos() { const x = leer('sp-sup', null); if (x) aplicarInstantanea(x); }
+  const guardarSupuestos = () => escribir('sp-sup', instantanea());
+  A.escenarios = () => { const l = leer('sp-esc', []); return Array.isArray(l) ? l : []; };
+  A.guardarEscenario = function (nombre) {
+    nombre = String(nombre || '').trim().slice(0, 40);
+    if (!nombre) return false;
+    const l = A.escenarios().filter((x) => x.n !== nombre);
+    l.push(Object.assign({ n: nombre, fecha: new Date().toISOString().slice(0, 10) }, instantanea()));
+    escribir('sp-esc', l.slice(-12)); return true;
+  };
+  A.cargarEscenario = function (nombre) { const x = A.escenarios().find((s) => s.n === nombre); if (x) { aplicarInstantanea(x); A.cambio(); } };
+  A.borrarEscenario = function (nombre) { escribir('sp-esc', A.escenarios().filter((s) => s.n !== nombre)); };
+  A.resumenEscenario = function (x) {
+    const p = x.par || {}, partes = [];
+    if (p.rf != null) partes.push(`rf ${A.pct(p.rf, 2)}`);
+    if (p.erp != null) partes.push(`prima ${A.pct(p.erp, 2)}`);
+    if (p.g != null) partes.push(`g ${A.pct(p.g, 2)}`);
+    if (p.dwacc) partes.push(`WACC ${A.pp(p.dwacc, 2)}`);
+    if (p.pesoDcf != null) partes.push(`${A.pct(p.pesoDcf, 0)} modelo`);
+    if (p.prob) partes.push(`prob. ${A.pct(p.prob.pes, 0)}/${A.pct(p.prob.base, 0)}/${A.pct(p.prob.opt, 0)}`);
+    if (p.metodoVt) partes.push(p.metodoVt === 'gordon' ? 'VT Gordon' : 'VT inductores');
+    const n = Object.keys(x.aj || {}).length;
+    if (n) partes.push(`${n} ${n === 1 ? 'empresa ajustada' : 'empresas ajustadas'}`);
+    return partes.join(' · ') || 'supuestos por defecto';
+  };
+
+  // ---------------------------------------------------------------- empresas que sigo
+  A.siguiendo = (t) => A.S.seg.includes(t);
+  A.alternarSeg = function (t) {
+    const i = A.S.seg.indexOf(t);
+    if (i >= 0) A.S.seg.splice(i, 1); else A.S.seg.push(t);
+    escribir('sp-seg', A.S.seg); return A.siguiendo(t);
+  };
+  A.botonSeg = function (t) {
+    const b = A.h('button', { type: 'button', class: 'sv-btn ap-seg-b' });
+    const sync = () => { const on = A.siguiendo(t); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '★ Siguiendo' : '☆ Seguir'; b.title = on ? 'Quitar de las empresas que sigues' : 'Añadir a las empresas que sigues (página Seguimiento)'; };
+    b.addEventListener('click', (ev) => { ev.stopPropagation(); A.alternarSeg(t); sync(); });
+    sync();
+    return b;
+  };
   A.ajDef = (e) => ({ beta: e.beta, dg: 0, dm: 0, invModo: 'consenso', ronic: null, lag: 1 });
   A.aj = (t) => A.S.aj[t] || A.ajDef(A.D.porT[t]);
   A.ajCambiado = (t) => { const a = A.S.aj[t], e = A.D.porT[t]; return !!a && (a.dg || a.dm || a.beta !== e.beta || a.invModo === 'explicito'); };
@@ -116,26 +199,7 @@ window.APP = (function () {
     for (const e of A.D.emp) if (e.valorada) out[e.ticker] = MOTOR.valorar(e, e.trays, e.mu, A.DEF, A.ajDef(e));
     return (cacheDef = out);
   };
-  // fiable: valoración con sentido económico y sin avisos graves
-  A.fiable = (e, v) => !!(e.valorada && v && v.valido && !(e.avisos || []).some((a) => A.AVISOS[a] && A.AVISOS[a].grave) && v.central > 0);
-  A.AVISOS = {
-    ebit_negativo: { t: 'Beneficio operativo negativo en los últimos doce meses', grave: true },
-    sin_consenso: { t: 'Sin consenso de analistas suficiente: años 1–2 con la tendencia histórica', grave: false },
-    pocos_analistas: { t: 'Menos de 3 analistas en el consenso', grave: false },
-    bpa_no_positivo: { t: 'BPA ajustado no positivo: margen de los años 1–2 sin el consenso de BPA', grave: false },
-    peso_vt_alto: { t: 'El valor terminal supera el 85 % del valor (caso base)', grave: false },
-    valor_extremo: { t: 'Valor central muy alejado de la cotización (menos de un 20 % o más del triple)', grave: true },
-    patrimonio_negativo: { t: 'El DCF da un valor del patrimonio negativo en algún escenario', grave: true },
-    divisa: { t: 'Estados financieros en otra divisa', grave: true },
-    sin_multiplos: { t: 'Sin comparables con múltiplos válidos: valor central solo con DCF', grave: false },
-    balance_antiguo: { t: 'Último balance de hace más de 7 meses', grave: false },
-    datos_anteriores: { t: 'Sin datos nuevos de Yahoo esta semana: se mantienen los de la semana anterior', grave: false },
-    valor_contable_bajo: { t: 'ROE muy alto sobre un valor contable pequeño: el modelo de beneficio residual es poco fiable para esta empresa', grave: true },
-    beneficio_negativo: { t: 'Beneficio por acción previsto negativo', grave: true },
-    ffo_negativo: { t: 'FFO (beneficio + amortización − plusvalías) negativo', grave: true },
-    dividendo_no_cubierto: { t: 'El dividendo supera al FFO de los últimos doce meses', grave: false },
-    sin_dividendo: { t: 'Sin dividendo publicado: se usa el 70 % del FFO como referencia', grave: false },
-  };
+  A.AVISOS = CRIT.AVISOS;
 
   // ---------------------------------------------------------------- comparador
   function leerCmp() { try { return JSON.parse(localStorage.getItem('sp-cmp') || '[]'); } catch (e) { return []; } }
@@ -180,7 +244,7 @@ window.APP = (function () {
     ['Solo múltiplos', (p) => { p.pesoDcf = 0; }],
     ['Valor terminal de Gordon', (p) => { p.metodoVt = 'gordon'; }],
   ];
-  A.cambio = function () { A.tocar(); A.programar(); };
+  A.cambio = function () { A.tocar(); guardarSupuestos(); A.programar(); };
   A.montarControles = function () {
     for (const c of CTRL) {
       const el = $('#sv-' + c.id);
@@ -198,7 +262,26 @@ window.APP = (function () {
       pr.appendChild(b);
     });
     $('#sv-reset').addEventListener('click', () => { A.S.par = copia(A.DEF); A.S.aj = {}; A.cambio(); });
+    const rv = $('#sv-rev');
+    if (rv) rv.addEventListener('change', () => A.usarRevisadas(rv.checked));
+    const fg = $('#sv-esc-f');
+    if (fg) fg.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      const inp = $('#sv-esc-n');
+      if (A.guardarEscenario(inp.value)) { inp.value = ''; pintarEscenarios(); }
+    });
   };
+  function pintarEscenarios() {
+    const cont = $('#sv-esc-l'); if (!cont) return;
+    const l = A.escenarios();
+    cont.replaceChildren(...(l.length ? l.map((x) => {
+      const b = A.h('button', { type: 'button', class: 'sv-chip', title: A.resumenEscenario(x) }, x.n);
+      b.addEventListener('click', () => A.cargarEscenario(x.n));
+      const del = A.h('button', { type: 'button', class: 'ap-esc-x', 'aria-label': `Borrar el escenario ${x.n}` }, '✕');
+      del.addEventListener('click', () => { A.borrarEscenario(x.n); pintarEscenarios(); });
+      return A.h('span', { class: 'ap-esc' }, b, del);
+    }) : [A.h('span', { class: 'sv-ctrl-d' }, 'Todavía no has guardado ninguno. Se guardan en este navegador.')]));
+  }
   A.sincronizarControles = function () {
     for (const c of CTRL) {
       const el = $('#sv-' + c.id);
@@ -214,6 +297,9 @@ window.APP = (function () {
     $('#sv-vt-d').textContent = 'Por defecto: inductores (ROIC)';
     const q = A.S.par;
     $('#ap-sup-r').textContent = `rf ${A.pct(q.rf, 2)} · ERP ${A.pct(q.erp, 2)} · g ${A.pct(q.g, 2)} · ${A.pct(q.pesoDcf, 0)} modelo`;
+    const rv = $('#sv-rev');
+    if (rv) { rv.checked = A.S.rev; rv.closest('.sv-grp').hidden = !Object.keys(A.D.rev).length; }
+    pintarEscenarios();
   };
 
   // ---------------------------------------------------------------- navegación
@@ -248,7 +334,7 @@ window.APP = (function () {
   };
   A.pintarNav = function (vista) {
     vista = vista || A.ruta().vista;
-    const sec = ['sector', 'industria', 'empresa', 'informe'].includes(vista) ? 'mercado' : vista;
+    const sec = ['sector', 'industria', 'empresa', 'informe'].includes(vista) ? 'mercado' : vista === 'glosario' ? 'metodo' : vista;
     for (const a of document.querySelectorAll('.ap-nav a')) a.setAttribute('aria-current', a.dataset.sec === sec ? 'page' : 'false');
     const n = $('#ap-cmp-n'); n.hidden = !A.S.cmp.length; n.textContent = A.S.cmp.length;
   };

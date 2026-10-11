@@ -4,44 +4,9 @@
   const V = A.vistas;
 
   // ---------------------------------------------------------------- utilidades comunes
-  // avisos de una empresa: los fijos del modelo + los que dependen de los supuestos actuales
-  A.avisosDe = function (e, v) {
-    const av = (e.avisos || []).slice();
-    if (e.valorada && v) {
-      const r = v.central / e.cotizacion;
-      if (v.valido && (r < 0.2 || r > 3)) av.push('valor_extremo');
-      if (A.ESC.some((sc) => v.res[sc].eq < 0)) av.push('patrimonio_negativo');
-      if (v.res.base.pesoTv > 0.85 && !av.includes('patrimonio_negativo')) av.push('peso_vt_alto');
-    }
-    return av;
-  };
-  A.fiable = (e, v) => !!(e.valorada && v && v.valido && v.central > 0 && !A.avisosDe(e, v).some((a) => A.AVISOS[a] && A.AVISOS[a].grave));
-  A.margenSeg = (valor, px) => (valor > 0 ? 1 - px / valor : null);
-
-  // criterios del inversor defensivo de Benjamin Graham (adaptados a los datos disponibles)
-  const tipoE = (e) => (e.modelo === 'reit' ? 'reit' : e.modelo === 'ri' ? (e.sector_gics === 'Utilities' ? 'electrica' : 'financiera') : 'general');
-  A.CRITERIOS = [
-    { id: 'per', t: 'PER de los últimos doce meses ≤ 15', f: (g) => g.per != null && g.per <= 15, v: (g) => veces(g.per) },
-    { id: 'pb', t: 'Precio / valor contable ≤ 1,5 (o PER × P/VC ≤ 22,5)', f: (g) => (g.pb != null && g.pb <= 1.5) || (g.per_pb != null && g.per_pb <= 22.5), v: (g) => `${veces(g.pb)} · producto ${num(g.per_pb, 1)}` },
-    { id: 'rc', t: 'Liquidez: activo corriente ≥ 2 × pasivo corriente', na: (e) => tipoE(e) !== 'general', f: (g) => g.rc != null && g.rc >= 2, v: (g) => veces(g.rc, 2) },
-    { id: 'deuda', t: 'Solidez: deuda neta ≤ 3 × EBITDA', na: (e) => tipoE(e) === 'financiera',
-      tE: (e) => ({ electrica: 'Solidez: deuda ≤ 2 × patrimonio (criterio de Graham para eléctricas)', reit: 'Solidez: deuda neta ≤ 6 × EBITDA (REIT)' }[tipoE(e)]),
-      f: (g, e) => (tipoE(e) === 'electrica' ? g.deuda_patrimonio != null && g.deuda_patrimonio <= 2 : g.dn_ebitda != null && g.dn_ebitda <= (tipoE(e) === 'reit' ? 6 : 3)),
-      v: (g, e) => (tipoE(e) === 'electrica' ? `${veces(g.deuda_patrimonio, 2)} el patrimonio` : g.dn_ebitda == null ? '—' : g.dn_ebitda < 0 ? 'caja neta' : veces(g.dn_ebitda)) },
-    { id: 'ben', t: 'Beneficios positivos todos los años disponibles', f: (g) => g.ben_n >= 3 && g.ben_pos === g.ben_n, v: (g) => `${g.ben_pos} de ${g.ben_n} años` },
-    { id: 'div', t: 'Dividendos todos los años disponibles', f: (g) => g.div_n >= 3 && g.div_anios === g.div_n, v: (g) => `${g.div_anios} de ${g.div_n} años · rentabilidad ${pct(g.div, 1)}` },
-    { id: 'cbpa', t: 'Crecimiento del BPA ≥ 10 % en el periodo disponible', f: (g) => g.cbpa != null && g.cbpa >= 0.1, v: (g) => (g.cbpa == null ? '—' : `${pct(g.cbpa, 0, true)} en ${g.cbpa_anios} años`) },
-    { id: 'ng', t: 'Cotización ≤ número de Graham (√(22,5 × BPA × valor contable))', f: (g, e) => g.ng != null && e.cotizacion <= g.ng, v: (g) => usd(g.ng, 2) },
-  ];
-  A.graham = function (e) {
-    const g = e.graham || {};
-    const items = A.CRITERIOS.map((c) => {
-      const na = !!(c.na && c.na(e));
-      return { id: c.id, t: (c.tE && c.tE(e)) || c.t, na, ok: !na && !!c.f(g, e), v: na ? 'no aplica' : c.v(g, e) };
-    });
-    const ap = items.filter((i) => !i.na);
-    return { items, puntos: ap.filter((i) => i.ok).length, total: ap.length };
-  };
+  // avisos, fiabilidad y criterios de Graham: comunes con el actualizador semanal (js/criterios.js)
+  A.avisosDe = CRIT.avisosDe; A.fiable = CRIT.fiable; A.margenSeg = CRIT.margenSeg;
+  A.CRITERIOS = CRIT.CRITERIOS; A.graham = CRIT.graham;
 
   const potCelda = (e, v) => (e.valorada && v && v.valido ? A.potSpan(v.pot) : h('span', { class: 'ap-gris' }, e.valorada ? 'n.s.' : 'sin valorar'));
   const nomCelda = (e) => h('span', { class: 'ap-emp' }, h('b', null, e.nombre), ' ', h('span', { class: 'ap-tk' }, e.ticker));
@@ -108,8 +73,22 @@
       h('a', { class: 'sv-card sv-kpi ap-kpi-link', href: '#/oportunidades' }, h('p', { class: 'sv-kpi-l' }, 'Con margen de seguridad de al menos el 25 %'), h('p', { class: 'sv-num' }, String(cand.length)), h('p', { class: 'sv-kpi-r' }, 'Ver el filtro de oportunidades ›')),
     ));
 
-    // sectores
+    // mapa del mercado
     const secs = Object.keys(A.D.jer).sort((a, b) => a.localeCompare(b, 'es'));
+    const grupos = secs.map((s) => ({ n: s, hijos: Object.values(A.D.jer[s]).flat().filter((e) => e.cap > 0 && !e.principal).map((e) => {
+      const v = Vs[e.ticker], ok = A.fiable(e, v);
+      return { id: e.ticker, n: e.nombre, cap: e.cap, pot: ok ? v.pot : null, gris: !ok, e };
+    }) })).filter((g) => g.hijos.length);
+    const escala = h('div', { class: 'ap-mapa-esc', 'aria-hidden': 'true' }, h('span', null, '−50 %'), h('i'), h('span', null, '+50 %'));
+    main.append(A.tarjeta('Mapa del mercado', 'Cada rectángulo es una empresa, con un tamaño proporcional a su capitalización, agrupada por sector. Verde: cotiza por debajo de su valor central; rojo: por encima; gris: sin valoración fiable. Pulsa una empresa para ver su ficha.',
+      h('div', { class: 'ap-mapa-ley' }, escala, h('span', { class: 'sv-ctrl-d' }, 'Potencial con los supuestos actuales')),
+      G.caja(window.innerWidth < 600 ? 520 : 480, (c) => G.mapa(c, grupos, {
+        clic: (d) => A.ir('#/empresa/' + d.id),
+        tip: (d, g) => { const v = Vs[d.id]; return [[`${d.n} (${d.id})`, null, 'sv-tip-h'], [`${g.n} · ${mill(d.cap)}`], [`Cotización: ${usd(d.e.cotizacion, 2)}`]].concat(
+          d.pot != null ? [[`Valor central: ${usd(v.central)} (${pct(d.pot, 0, true)})`]] : [[d.e.valorada ? 'Valoración poco fiable: ver avisos' : 'Sin valorar']]); },
+      }))));
+
+    // sectores
     const filas = secs.map((s) => { const grupo = Object.values(A.D.jer[s]).flat(); return Object.assign({ s }, resumen(grupo, Vs)); });
     const conDatos = filas.filter((f) => f.nf >= 3).sort((a, b) => b.med - a.med);
     main.append(A.tarjeta('Potencial mediano por sector', 'Mediana del potencial (valor central frente a la cotización) de las empresas de cada sector con una valoración fiable. Pulsa un sector para entrar.',
@@ -193,7 +172,7 @@
     main.append(A.migas([['Mercado', '#/mercado'], [e.sector, hSec(e.sector)], [e.industria, hInd(e.sector, e.industria)], [e.nombre]]));
     const cab = h('header', { class: 'sv-head' },
       h('div', { class: 'ap-tit' }, h('h1', { class: 'sv-h1' }, `${e.nombre} `, h('span', { class: 'ap-tk-g' }, e.ticker)),
-        h('div', { class: 'ap-tit-b' }, A.botonCmp(e.ticker), e.valorada ? h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe') : null)),
+        h('div', { class: 'ap-tit-b' }, A.botonSeg(e.ticker), A.botonCmp(e.ticker), e.valorada ? h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe') : null)),
       h('p', { class: 'sv-meta' }, [e.empresa !== e.nombre ? e.empresa : null, e.subindustria, e.sede, e.cap ? `capitalización ${mill(e.cap)}` : null,
         e.proximos_resultados ? `próximos resultados: ${fecha(e.proximos_resultados)}` : null].filter(Boolean).join(' · ')));
     main.append(cab);
@@ -202,33 +181,30 @@
       if (e.principal) main.append(h('p', null, A.enlace('#/empresa/' + e.principal, `Ver la valoración de ${e.principal} ›`)));
       main.append(h('section', { class: 'sv-kpis' }, A.kpi('Cotización', usd(e.cotizacion, 2), e.cap ? mill(e.cap) : null),
         e.analistas && e.analistas.objetivo ? A.kpi('Precio objetivo medio de los analistas', usd(e.analistas.objetivo, 0), `${e.analistas.n || '—'} analistas · ${pct(e.analistas.objetivo / e.cotizacion - 1, 0, true)}`) : ''));
-      if (e.graham) main.append(tarjetaGraham(e));
-      main.append(tarjetaDescripcion(e));
+      main.append(tarjetaCotizacion(e, null));
+      if (e.graham) main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+      main.append(tarjetaHistoria(e), tarjetaDescripcion(e));
       return;
     }
     const aj = A.S.aj[e.ticker] || (A.S.aj[e.ticker] = A.ajDef(e));
     const v = A.valor(e.ticker), vd = A.valoresDef()[e.ticker];
     const av = A.avisosDe(e, v);
     cab.append(h('p', { class: 'sv-take' }, frase(e, v)));
+    const nr = notaRevisada(e);
+    if (nr) main.append(nr);
     if (av.length) main.append(avisoBox('Avisos sobre esta valoración', av.map((a) => (A.AVISOS[a] || { t: a }).t + (A.AVISOS[a] && A.AVISOS[a].grave ? ' (se excluye del filtro de oportunidades por defecto)' : ''))));
     if (e.modelo !== 'fcff') { empresaFase2(main, e, aj, v, vd); return; }
     const gi = MOTOR.crecimientoImplicito(e, e.trays, A.S.par, aj, v.w, v.res.base.roicT);
     const cb = MOTOR.camino(e.trays.base, aj);
     const ronicVis = aj.invModo === 'explicito' ? aj.ronic : v.ronicImpl;
     main.append(h('section', { class: 'sv-kpis' },
-      A.kpi('Valor central', usd(v.central), [A.potSpan(v.pot), ` frente a ${usd(e.cotizacion, 2)} · rango ${usd(v.bajo)} – ${usd(v.alto)}`]),
-      (() => { const m = A.margenSeg(v.central, e.cotizacion);
-        return m != null && m > 0 ? A.kpi('Margen de seguridad', pct(m, 0), 'Parte del valor central que no paga la cotización (1 − cotización ÷ valor)', 'sv-pos')
-          : A.kpi('Margen de seguridad', 'Sin margen', v.central > 0 ? `La cotización supera el valor central en un ${pct(e.cotizacion / v.central - 1, 0)}` : 'El modelo no da un valor positivo'); })(),
-      A.kpi('DCF ponderado por escenarios', usd(v.pond), `${A.ESC.map((sc) => `${A.NOM_ESC[sc]} ${usd(v.res[sc].vps)}`).join(' · ')}`),
-      A.kpi('Crecimiento que descuenta la cotización', gi == null ? 'n.s.' : pct(gi, 1), `Ventas, años 1–5 · caso base: ${pct(cb.gr.slice(0, 5).reduce((s, x) => s + x, 0) / 5, 1)} anual`),
-      A.kpi('WACC', pct(v.w, 2), `Ke ${pct(v.W.ke, 1)} (beta ${num(v.W.beta, 2)}) · Kd ${pct(v.W.kd, 1)} · deuda ${pct(v.W.wd, 0)}`),
+      kpisComunes(e, v),
+      A.kpi(['DCF ponderado por escenarios ', A.ayuda('escenarios')], usd(v.pond), `${A.ESC.map((sc) => `${A.NOM_ESC[sc]} ${usd(v.res[sc].vps)}`).join(' · ')}`),
+      A.kpi(['Crecimiento que descuenta la cotización ', A.ayuda('implicito')], gi == null ? 'n.s.' : pct(gi, 1), `Ventas, años 1–5 · caso base: ${pct(cb.gr.slice(0, 5).reduce((s, x) => s + x, 0) / 5, 1)} anual`),
+      A.kpi(['WACC ', A.ayuda('wacc')], pct(v.w, 2), `Ke ${pct(v.W.ke, 1)} (beta ${num(v.W.beta, 2)}) · Kd ${pct(v.W.kd, 1)} · deuda ${pct(v.W.wd, 0)}`),
     ));
     main.append(tarjetaAjustes(e, aj, v, vd));
-    const hist = historicoDe(e.ticker);
-    main.append(A.tarjeta('Evolución semanal', 'Cotización y valor central con los supuestos por defecto en cada actualización semanal. El rombo es la simulación actual si has cambiado algún supuesto.',
-      G.leyenda([['Valor central', 'var(--s1)'], ['Cotización', 'var(--s2)'], ['Simulación actual', 'var(--color-fg)', 'b']]),
-      G.caja(220, (c) => G.evolucion(c, hist, v.central))));
+    main.append(tarjetaCotizacion(e, v));
     const ivNota = h('p', { class: 'sv-kpi-r' });
     const ivLeg = h('div');
     const sc = MOTOR.valorSinCrecimiento(e, v.w);
@@ -246,24 +222,44 @@
       A.tarjeta('Valor por acción según el método', 'Barra: mínimo–máximo; trazo: valor central de cada método; línea vertical: cotización.', G.caja(200, (c) => G.metodos(c, e, v, v.pesoDcf)))));
     main.append(tarjetaProyeccion(e, v));
     main.append(tarjetaComparables(e));
-    main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaAnalistas(e, v)));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+    main.append(tarjetaHistoria(e));
     main.append(tarjetaSupuestos(e, v));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaAnalistas(e, v), tarjetaExportar(e)));
     main.append(tarjetaDescripcion(e));
   };
 
   // ---------------------------------------------------------------- fase 2: beneficio residual y REIT
   const MODELOS = {
-    fcff: { n: 'DCF de flujos de caja libres', intr: 'DCF ponderado por escenarios', imp: 'Crecimiento que descuenta la cotización', tasa: 'WACC' },
-    ri: { n: 'Beneficio residual (ROE frente al coste de los recursos propios)', intr: 'Beneficio residual ponderado', imp: 'ROE a largo plazo que descuenta la cotización', tasa: 'Ke' },
-    reit: { n: 'Descuento del AFFO (flujo disponible para el accionista del REIT)', intr: 'Descuento del AFFO ponderado', imp: 'Crecimiento del AFFO que descuenta la cotización', tasa: 'Ke' },
+    fcff: { n: 'DCF de flujos de caja libres', c: 'DCF de flujos de caja libres', intr: 'DCF ponderado por escenarios', imp: 'Crecimiento que descuenta la cotización', tasa: 'WACC' },
+    ri: { n: 'Beneficio residual (ROE frente al coste de los recursos propios)', c: 'beneficio residual', intr: 'Beneficio residual ponderado', imp: 'ROE a largo plazo que descuenta la cotización', tasa: 'Ke' },
+    reit: { n: 'Descuento del AFFO (flujo disponible para el accionista del REIT)', c: 'descuento del AFFO', intr: 'Descuento del AFFO ponderado', imp: 'Crecimiento del AFFO que descuenta la cotización', tasa: 'Ke' },
   };
   A.MODELOS = MODELOS;
 
   function kpisComunes(e, v) {
     const m = A.margenSeg(v.central, e.cotizacion);
-    return [A.kpi('Valor central', usd(v.central), [A.potSpan(v.pot), ` frente a ${usd(e.cotizacion, 2)} · rango ${usd(v.bajo)} – ${usd(v.alto)}`]),
-      m != null && m > 0 ? A.kpi('Margen de seguridad', pct(m, 0), 'Parte del valor central que no paga la cotización (1 − cotización ÷ valor)', 'sv-pos')
-        : A.kpi('Margen de seguridad', 'Sin margen', v.central > 0 ? `La cotización supera el valor central en un ${pct(e.cotizacion / v.central - 1, 0)}` : 'El modelo no da un valor positivo')];
+    const lm = ['Margen de seguridad ', A.ayuda('margen-seguridad')];
+    return [A.kpi(['Valor central ', A.ayuda('valor-central')], usd(v.central), [A.potSpan(v.pot), ` frente a ${usd(e.cotizacion, 2)} · rango ${usd(v.bajo)} – ${usd(v.alto)}`]),
+      m != null && m > 0 ? A.kpi(lm, pct(m, 0), 'Parte del valor central que no paga la cotización (1 − cotización ÷ valor)', 'sv-pos')
+        : A.kpi(lm, 'Sin margen', v.central > 0 ? `La cotización supera el valor central en un ${pct(e.cotizacion / v.central - 1, 0)}` : 'El modelo no da un valor positivo')];
+  }
+
+  // ---------------------------------------------------------------- ficha: exportar la valoración a Excel
+  function tarjetaExportar(e) {
+    const b = h('button', { type: 'button', class: 'sv-btn' }, 'Descargar la valoración en Excel');
+    const st = h('p', { class: 'sv-ctrl-d', role: 'status' });
+    b.addEventListener('click', async () => {
+      b.disabled = true; st.textContent = 'Preparando el fichero…';
+      try {
+        if (!A.excel) await A.cargarScript('js/excel.js');
+        const n = A.excel(e, A.valor(e.ticker), A.S.par, A.aj(e.ticker));
+        st.textContent = `Descargado: ${n}. Cambia cualquier celda amarilla y todo se recalcula.`;
+      } catch (err) { console.error(err); st.textContent = 'No se ha podido generar el fichero.'; }
+      b.disabled = false;
+    });
+    return A.tarjeta('Llévate el modelo', `Hoja de cálculo con la valoración de ${e.nombre} construida con fórmulas: supuestos (en amarillo), proyección de los tres escenarios, valor terminal, múltiplos y valor central, con los supuestos que tienes ahora en el simulador.`,
+      h('div', { class: 'sv-bar' }, b, h('a', { class: 'sv-btn', href: '#/informe/' + e.ticker }, 'Informe imprimible')), st);
   }
 
   function empresaFase2(main, e, aj, v, vd) {
@@ -272,14 +268,11 @@
     const refImp = ri ? `ROE del año 1: ${pct(e.ri.bpa1[1] / e.ri.bv0, 1)} · a largo plazo en el caso base: ${pct(b.roeLT, 1)} · Ke ${pct(v.w, 1)}`
       : `Caso base: ${pct(e.reit.g1[1] + (aj.dg || 0), 1)} y ${pct(e.reit.g2[1] + (aj.dg || 0), 1)} en los años 1–2; después converge a g`;
     main.append(h('section', { class: 'sv-kpis' }, kpisComunes(e, v),
-      A.kpi(M.intr, usd(v.pond), A.ESC.map((sc) => `${A.NOM_ESC[sc]} ${usd(v.res[sc].vps)}`).join(' · ')),
-      A.kpi(M.imp, imp == null ? 'n.s.' : pct(imp, 1), refImp),
-      A.kpi('Coste de los recursos propios (Ke)', pct(v.w, 2), `Tipo sin riesgo + beta ${num(v.W.beta, 2)} × prima de riesgo`)));
+      A.kpi([M.intr + ' ', A.ayuda(ri ? 'beneficio-residual' : 'affo')], usd(v.pond), A.ESC.map((sc) => `${A.NOM_ESC[sc]} ${usd(v.res[sc].vps)}`).join(' · ')),
+      A.kpi([M.imp + ' ', A.ayuda('implicito')], imp == null ? 'n.s.' : pct(imp, 1), refImp),
+      A.kpi(['Coste de los recursos propios (Ke) ', A.ayuda('ke')], pct(v.w, 2), `Tipo sin riesgo + beta ${num(v.W.beta, 2)} × prima de riesgo`)));
     main.append(tarjetaAjustesF2(e, aj, v, vd));
-    const hist = historicoDe(e.ticker);
-    main.append(A.tarjeta('Evolución semanal', 'Cotización y valor central con los supuestos por defecto en cada actualización semanal. El rombo es la simulación actual si has cambiado algún supuesto.',
-      G.leyenda([['Valor central', 'var(--s1)'], ['Cotización', 'var(--s2)'], ['Simulación actual', 'var(--color-fg)', 'b']]),
-      G.caja(220, (c) => G.evolucion(c, hist, v.central))));
+    main.append(tarjetaCotizacion(e, v));
     const anios = d3.range(1, 11).map(String);
     const series = [['base', 'var(--s1)'], ['pes', 'var(--s2)'], ['opt', 'var(--s3)']];
     if (ri) {
@@ -307,8 +300,10 @@
       A.tarjeta('Valor por acción según el método', 'Barra: mínimo–máximo; trazo: valor central de cada método; línea vertical: cotización.', G.caja(200, (c) => G.metodos(c, e, v, v.pesoDcf)))));
     main.append(tarjetaProyeccionF2(e, v));
     main.append(tarjetaComparables(e));
-    main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaAnalistas(e, v)));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaGraham(e), tarjetaCalidad(e)));
+    main.append(tarjetaHistoria(e));
     main.append(tarjetaSupuestosF2(e, v));
+    main.append(h('div', { class: 'sv-grid2' }, tarjetaAnalistas(e, v), tarjetaExportar(e)));
     main.append(tarjetaDescripcion(e));
   }
 
@@ -462,7 +457,8 @@
     const peers = (mu.comparables || []).map((t) => A.D.porT[t]).filter(Boolean);
     const nivel = { subindustria: 'de su misma subindustria', industria: 'de su industria (la subindustria tiene pocas empresas comparables)', sector: 'de su sector (la industria tiene pocas empresas comparables)' }[mu.nivel] || '';
     const filas = [e].concat(peers);
-    return A.tarjeta('Comparables y múltiplos adelantados', `Empresas del S&P 500 ${nivel}, las más parecidas en tamaño. Se descartan PER adelantados por encima de 60 y EV/EBITDA por encima de 40. Mediana: PER ${veces(mu.per_mediana)} → ${usd(mu.per_valor_mediana)} por acción; EV/EBITDA ${veces(mu.ev_ebitda_mediana)} → ${usd(mu.ev_ebitda_valor_mediana)}.`,
+    const quien = mu.nivel === 'revisado' ? 'Comparables elegidos a mano en el Simulador 7M (aquí solo aparecen los que forman parte del S&P 500).' : `Empresas del S&P 500 ${nivel}, las más parecidas en tamaño. Se descartan PER adelantados por encima de 60 y EV/EBITDA por encima de 40.`;
+    return A.tarjeta(['Comparables y múltiplos adelantados ', A.ayuda('comparables')], `${quien} Mediana: PER ${veces(mu.per_mediana)} → ${usd(mu.per_valor_mediana)} por acción; EV/EBITDA ${veces(mu.ev_ebitda_mediana)} → ${usd(mu.ev_ebitda_valor_mediana)}.`,
       A.tabla([
         { t: 'Empresa', v: (x) => x.nombre, f: (x) => (x === e ? h('b', null, `${x.nombre} (esta empresa)`) : nomCelda(x)), texto: true },
         { t: 'Subindustria', f: (x) => x.subindustria, cls: 'sv-sec-col' },
@@ -492,7 +488,7 @@
 
   function tarjetaGraham(e) {
     const gr = A.graham(e), g = e.graham || {};
-    return A.tarjeta(`Criterios de Graham: ${gr.puntos} de ${gr.total}`, 'Criterios del inversor defensivo de Benjamin Graham (The Intelligent Investor), adaptados a los datos disponibles: los históricos cubren unos 4 años, no 10 o 20. La liquidez no se aplica a financieras, eléctricas ni REIT, y la deuda de bancos y aseguradoras forma parte de su negocio.',
+    return A.tarjeta([`Criterios de Graham: ${gr.puntos} de ${gr.total} `, A.ayuda('graham')], 'Criterios del inversor defensivo de Benjamin Graham (The Intelligent Investor). Beneficios, dividendos y crecimiento del BPA con los 10 últimos ejercicios presentados a la SEC (si no hay, con los 4 años de Yahoo). La liquidez no se aplica a financieras, eléctricas ni REIT, y la deuda de bancos y aseguradoras forma parte de su negocio.',
       h('ul', { class: 'ap-checks' }, gr.items.map((i) => h('li', { class: i.na ? 'ap-na' : i.ok ? 'ap-ok' : 'ap-no' }, h('span', { class: 'ap-check', 'aria-hidden': 'true' }, i.na ? '–' : i.ok ? '✓' : '✗'),
         h('span', { class: 'ap-check-t' }, i.t), h('span', { class: 'ap-check-v' }, i.v), h('span', { class: 'ap-sr' }, i.na ? ' (no aplica)' : i.ok ? ' (cumple)' : ' (no cumple)')))),
       h('p', { class: 'sv-kpi-r' }, `BPA de los últimos doce meses ${usd(g.bpa, 2)} · valor contable por acción ${usd(g.vc, 2)} · número de Graham ${usd(g.ng, 2)}` +
@@ -516,7 +512,8 @@
     const MODO = { calibrado: 'BPA del consenso convertido en EBITA con la diferencia entre BPA publicado y EBITA de los últimos doce meses',
       ajustado: 'BPA "ajustado" del consenso (muy por encima del contable): EBITA ajustado menos la remuneración en acciones',
       bruto: 'BPA del consenso más los intereses netos (los últimos doce meses incluyen partidas extraordinarias)',
-      historico: 'sin consenso utilizable: crecimiento y margen de los últimos doce meses' };
+      historico: 'sin consenso utilizable: crecimiento y margen de los últimos doce meses',
+      revisado: 'crecimiento y margen revisados a mano en el Simulador 7M (consenso y guías de la empresa)' };
     const esc = A.ESC.map((sc, i) => h('tr', null, h('td', null, A.NOM_ESC[sc]), h('td', null, pct(T.g1[i], 1)), h('td', null, pct(T.g2[i], 1)), h('td', null, pct(T.m1[i], 1)), h('td', null, pct(T.m2[i], 1)), h('td', null, pct(T.m10[i], 1)), h('td', null, usd(v.res[sc].vps))));
     return A.tarjeta('Datos y supuestos del modelo', `Cifras de los últimos doce meses hasta el ${fecha(e.fecha_ttm)} y balance del ${fecha(e.fecha_balance)} (Yahoo Finance, millones de dólares).`,
       h('div', { class: 'sv-grid2' },
@@ -527,13 +524,121 @@
           ['Remuneración en acciones', mill(e.sbc_ttm)]]),
         dl([['Deuda financiera bruta', mill(e.deuda_bruta)], ['Deuda neta', mill(e.deuda_financiera_neta)], ['Inversiones no operativas', mill(e.inversiones_no_operativas)],
           ['Minoritarios y preferentes', mill((e.minoritarios || 0) + (e.preferentes || 0))], ['Acciones (diluidas)', `${num(e.acciones_m, 1)} millones`],
-          ['Rating sintético', `${e.rating}${e.cobertura != null ? ` (cobertura de intereses ${num(e.cobertura, 1)}x)` : ' (por deuda / EBITDA)'} · diferencial ${pct(e.diferencial, 2)}`],
-          ['Beta', `${num(e.beta, 2)} = media de Yahoo (${num(e.beta_yahoo, 2)}) y de su industria reapalancada (${num(e.beta_sector_apalancada, 2)})`],
+          e.revisada_activa ? ['Diferencial de la deuda', `${pct(e.diferencial, 2)} (Simulador 7M)`]
+            : ['Rating sintético', `${e.rating}${e.cobertura != null ? ` (cobertura de intereses ${num(e.cobertura, 1)}x)` : ' (por deuda / EBITDA)'} · diferencial ${pct(e.diferencial, 2)}`],
+          ['Beta', e.revisada_activa ? `${num(e.beta, 2)} (revisada en el Simulador 7M; la automática sería ${num(A.D.auto[e.ticker].beta, 2)})` : `${num(e.beta, 2)} = media de Yahoo (${num(e.beta_yahoo, 2)}) y de su industria reapalancada (${num(e.beta_sector_apalancada, 2)})`],
           ['Margen de referencia (mediana de comparables)', pct(e.margen_referencia, 1)], ['Años 1–2', MODO[T.modo] || '—']])),
       h('div', { class: 'sv-tw' }, h('table', { class: 'sv-table ap-esc' },
         h('thead', null, h('tr', null, ['Escenario', 'Crec. año 1', 'Crec. año 2', 'Margen año 1', 'Margen año 2', 'Margen año 10', 'DCF por acción'].map((x) => h('th', null, x)))),
         h('tbody', null, esc))),
       h('p', { class: 'sv-kpi-r' }, `Crecimiento del año 10: ${pct(T.g10, 1)} en los tres escenarios; amortización ${pct(T.da, 1)} de las ventas; CapEx del ${pct(T.cx0, 1)} al ${pct(T.cx10, 1)}; NOF ${pct(T.nof, 1)} de las ventas.`));
+  }
+
+  // ---------------------------------------------------------------- ficha: valoración revisada de las 7 Magníficas
+  function notaRevisada(e) {
+    if (!A.D.rev[e.ticker]) return null;
+    const b = h('button', { type: 'button', class: 'sv-btn' }, e.revisada_activa ? 'Ver la valoración automática' : 'Usar la valoración revisada');
+    b.addEventListener('click', () => A.usarRevisadas(!e.revisada_activa));
+    const f = (A.D.rev[e.ticker].revisada || {}).fecha;
+    return h('div', { class: 'ap-nota' },
+      h('p', null, e.revisada_activa
+        ? [h('b', null, 'Valoración revisada en el Simulador 7M. '), `Crecimiento, márgenes, inversión, beta y comparables revisados empresa a empresa${f ? ` (datos del ${fecha(f)})` : ''}, con el mismo motor de DCF. `, h('a', { href: 'https://bigthor12-7m.github.io/simulador-7mag/', target: '_blank', rel: 'noopener' }, 'Abrir el Simulador 7M ›'), ' ', A.ayuda('revisada')]
+        : [h('b', null, 'Valoración automática. '), 'Estás viendo el modelo con las reglas comunes del S&P 500; las 7 Magníficas tienen además una valoración revisada empresa a empresa.']), b);
+  }
+
+  // ---------------------------------------------------------------- ficha: cotización de 5 años frente al S&P 500
+  A.D_px = {};
+  const cargarPx = (t) => (A.D_px[t] ? Promise.resolve(A.D_px[t]) : A.json('precios/' + t.replace('^', '_'), true).then((d) => (A.D_px[t] = (d || []).map(([f, c]) => [new Date(f + 'T00:00:00Z'), c]))));
+  function tarjetaCotizacion(e, v) {
+    const cont = h('div', { class: 'sv-chart', style: { minHeight: '250px' } }), resumenTxt = h('p', { class: 'sv-kpi-r' });
+    let rango = A.leer('sp-px-rango', 5);
+    const seg = h('div', { class: 'sv-seg', role: 'group', 'aria-label': 'Periodo' }, [[1, '1 año'], [3, '3 años'], [5, '5 años']].map(([a, txt]) => {
+      const b = h('button', { type: 'button', 'aria-pressed': String(a === rango) }, txt);
+      b.addEventListener('click', () => { rango = a; A.escribir('sp-px-rango', a); for (const x of seg.children) x.setAttribute('aria-pressed', String(x === b)); dibujar(); });
+      return b;
+    }));
+    let datos = null;
+    const hist = historicoDe(e.ticker);
+    function dibujar() {
+      if (!datos) return;
+      const [px, sp] = datos;
+      if (!px.length) { cont.replaceChildren(h('p', { class: 'sv-card-n' }, 'Sin cotizaciones históricas disponibles.')); resumenTxt.textContent = ''; return; }
+      const fin = px[px.length - 1][0], ini = new Date(Date.UTC(fin.getUTCFullYear() - rango, fin.getUTCMonth(), fin.getUTCDate()));
+      const p = px.filter((x) => x[0] >= ini);
+      const s0 = sp.find((x) => x[0] >= p[0][0]);
+      const spR = s0 ? sp.filter((x) => x[0] >= p[0][0]).map(([d, c]) => [d, c / s0[1] * p[0][1]]) : [];
+      const cen = hist.filter((r) => r.d >= ini).map((r) => [r.d, r.central]);
+      const series = [{ n: 'Cotización', color: 'var(--s2)', puntos: p, fmtTip: (x) => usd(x, 2) },
+        { n: 'S&P 500 (misma base)', color: 'var(--cds-chart-muted)', discontinua: true, puntos: spR, fmtTip: (x) => usd(x, 2) }];
+      if (cen.length) series.push({ n: 'Valor central semanal', color: 'var(--s1)', puntos: cen, soloPuntos: cen.length < 6, fmtTip: (x) => usd(x, 0) });
+      const refs = v && v.valido && v.central > 0 ? [{ v: Math.min(v.central, d3.max(p, (x) => x[1]) * 2.5), n: `Valor central ${usd(v.central)}`, color: 'var(--s1)' }] : [];
+      G.temporal(cont, series, { alto: 250, refs, fmtY: (x) => num(x, 0), prefijo: 'Semana del ' });
+      const r = p[p.length - 1][1] / p[0][1] - 1, rs = spR.length ? spR[spR.length - 1][1] / spR[0][1] - 1 : null;
+      const u52 = px.filter((x) => +x[0] >= +fin - 365 * 864e5).map((x) => x[1]);
+      resumenTxt.textContent = `En ${rango === 1 ? 'el último año' : `los últimos ${rango} años`}: ${pct(r, 0, true)}${rs != null ? ` (S&P 500: ${pct(rs, 0, true)})` : ''}, sin dividendos. ` +
+        `Máximo y mínimo de las últimas 52 semanas: ${usd(d3.max(u52), 2)} y ${usd(d3.min(u52), 2)} (cotización ${pct(e.cotizacion / d3.max(u52) - 1, 0, true)} desde el máximo).`;
+    }
+    Promise.all([cargarPx(e.ticker), cargarPx('^GSPC')]).then((d) => { datos = d; requestAnimationFrame(() => { if (cont.isConnected) dibujar(); }); })
+      .catch(() => cont.replaceChildren(h('p', { class: 'sv-card-n' }, 'No se han podido cargar las cotizaciones.')));
+    return A.tarjeta(null, null, h('div', { class: 'sv-detail-h' }, h('h2', { class: 'sv-card-t' }, 'Cotización y valor central'), seg),
+      h('p', { class: 'sv-card-n' }, 'Cierre semanal de los últimos años frente al S&P 500 llevado a la misma base; puntos azules: valor central de cada actualización semanal; línea discontinua azul: valor central con los supuestos actuales.'),
+      G.leyenda([['Cotización', 'var(--s2)'], ['S&P 500 (misma base)', 'var(--cds-chart-muted)'], ['Valor central', 'var(--s1)']]), cont, resumenTxt);
+  }
+
+  // ---------------------------------------------------------------- ficha: historia de 10 años (SEC)
+  let HIST = null, histP = null;
+  A.cargarHistoria = () => (HIST ? Promise.resolve(HIST) : histP || (histP = A.json('historia', true).then((d) => (HIST = d || {}))));
+  function tarjetaHistoria(e) {
+    const cuerpo = h('div', null, h('p', { class: 'sv-card-n' }, 'Cargando la historia de la SEC…'));
+    A.cargarHistoria().then((H) => {
+      const d = H[e.ticker];
+      if (!Object.keys(H).length) { cuerpo.replaceChildren(h('p', { class: 'sv-card-n' }, 'La historia de 10 años de la SEC todavía no se ha podido descargar: mientras tanto, los criterios de Graham usan los 4 años de Yahoo Finance.')); return; }
+      if (!d || !d.años) { cuerpo.replaceChildren(h('p', { class: 'sv-card-n' }, 'Sin datos de la SEC para esta empresa.')); return; }
+      const idx = d.años.map((a, i) => i).filter((i) => ['ventas', 'beneficio', 'bpa'].some((k) => d[k] && d[k][i] != null));
+      if (!idx.length) { cuerpo.replaceChildren(h('p', { class: 'sv-card-n' }, 'Sin datos de la SEC para esta empresa.')); return; }
+      const i0 = idx[0], anios = d.años.slice(i0).map(String);
+      const S = (k) => (d[k] || []).slice(i0);
+      const grande = Math.max(...S('ventas').filter((x) => x != null).map(Math.abs), 0) > 2e5;
+      const U = grande ? 1000 : 1, uT = grande ? 'miles de M$' : 'M$';
+      const dpa = S('dpa').map((x, i) => (x != null ? x : null));
+      const mini = (titulo, serie, fmt, fmtTip, color) => h('div', { class: 'ap-mini' }, h('p', { class: 'ap-mini-t' }, titulo),
+        G.caja(150, (c) => G.anios(c, anios.map((a, i) => ({ a, v: serie[i] })), { alto: 150, fmt, fmtTip, n: titulo.split(' (')[0], color })));
+      const cagr = (s) => { const xs = s.map((x, i) => [i, x]).filter(([, x]) => x != null && x > 0); if (xs.length < 2) return null; const [a, b] = [xs[0], xs[xs.length - 1]]; return b[0] > a[0] ? (b[1] / a[1]) ** (1 / (b[0] - a[0])) - 1 : null; };
+      const cv = cagr(S('ventas')), cb = cagr(S('bpa'));
+      const g = e.graham || {};
+      cuerpo.replaceChildren(
+        h('div', { class: 'ap-minis' },
+          mini(`Ventas (${uT})`, S('ventas').map((x) => (x == null ? null : x / U)), (x) => num(x, 0), (x) => `${num(x, grande ? 1 : 0)} ${uT}`),
+          mini(`Beneficio neto (${uT})`, S('beneficio').map((x) => (x == null ? null : x / U)), (x) => num(x, 0), (x) => `${num(x, grande ? 1 : 0)} ${uT}`),
+          mini('BPA ($ por acción)', S('bpa'), (x) => num(x, 1), (x) => usd(x, 2)),
+          mini('Dividendo por acción ($)', dpa, (x) => num(x, 1), (x) => usd(x, 2), 'var(--s3)')),
+        h('p', { class: 'sv-kpi-r' }, [cv != null ? `Ventas: ${pct(cv, 1, true)} anual` : null, cb != null ? `BPA: ${pct(cb, 1, true)} anual` : null,
+          g.ben_fuente === 'SEC' ? `beneficios positivos ${g.ben_pos} de ${g.ben_n} años` : null, g.div_n ? `dividendos ${g.div_anios} de ${g.div_n} años` : null].filter(Boolean).join(' · ') +
+          (cv != null || cb != null ? ` (crecimiento anual compuesto ${anios[0]}–${anios[anios.length - 1]}).` : '')),
+        h('details', { class: 'ap-det' }, h('summary', null, 'Ver la tabla completa'),
+          h('div', { class: 'sv-tw' }, h('table', { class: 'sv-table ap-proy' },
+            h('thead', null, h('tr', null, h('th', null, uT), anios.map((a) => h('th', null, a)))),
+            h('tbody', null, [['Ventas', 'ventas', U], ['EBIT', 'ebit', U], ['Beneficio neto', 'beneficio', U], ['Flujo de explotación', 'cfo', U], ['Patrimonio', 'patrimonio', U], ['Dividendos pagados', 'dividendos', U],
+              ['BPA ($)', 'bpa', 0], ['Dividendo por acción ($)', 'dpa', 0]].map(([n, k, u]) => h('tr', null, h('td', null, n),
+              S(k).map((x) => h('td', null, x == null ? '—' : u ? num(x / u, grande ? 1 : 0) : num(x, 2))))))))));
+    }).catch(() => cuerpo.replaceChildren(h('p', { class: 'sv-card-n' }, 'No se ha podido cargar la historia.')));
+    return A.tarjeta(['Historia de 10 años ', A.ayuda('sec')], 'Ejercicios presentados a la SEC (formularios 10-K), por año natural. BPA y dividendo por acción ajustados por splits. Con esta historia se calculan los criterios de Graham de beneficios, dividendos y crecimiento del BPA a 10 años.', cuerpo);
+  }
+
+  // ---------------------------------------------------------------- ficha: Piotroski y fórmula mágica
+  function tarjetaCalidad(e) {
+    const p = e.piotroski, gb = e.greenblatt;
+    const lista = p ? h('ul', { class: 'ap-checks' }, CRIT.PIOTROSKI.map(([k, t]) => {
+      const x = p.d[k];
+      return h('li', { class: x == null ? 'ap-na' : x ? 'ap-ok' : 'ap-no' }, h('span', { class: 'ap-check', 'aria-hidden': 'true' }, x == null ? '–' : x ? '✓' : '✗'),
+        h('span', { class: 'ap-check-t' }, t), h('span', { class: 'ap-check-v' }, x == null ? 'sin datos' : ''), h('span', { class: 'ap-sr' }, x == null ? ' (sin datos)' : x ? ' (cumple)' : ' (no cumple)'));
+    })) : h('p', { class: 'sv-card-n' }, 'Sin dos ejercicios anuales completos para calcularla.');
+    const gTxt = gb ? `Puesto ${gb.pos} de ${gb.n} en la fórmula mágica de Greenblatt: rentabilidad del beneficio (EBIT ÷ valor de la empresa) del ${pct(gb.ey, 1)} y rentabilidad del capital (EBIT ÷ activo fijo y NOF) del ${pct(gb.roc, 0)}.` +
+      (gb.pos <= 30 ? ' Está entre las 30 primeras.' : '')
+      : `No entra en la fórmula mágica: ${e.modelo !== 'fcff' || ['Financials', 'Utilities'].includes(e.sector_gics) ? 'se excluyen financieras, eléctricas y REIT' : 'beneficio operativo no positivo o sin datos'}.`;
+    return A.tarjeta(['Calidad: Piotroski y Greenblatt ', A.ayuda('piotroski')], p ? `Puntuación F de Piotroski: ${p.f} de 9 (${p.n} señales con datos), comparando el ejercicio ${String(p.ejercicio || '').slice(0, 4)} con el anterior.` : null,
+      p ? h('p', { class: 'ap-f' }, h('span', { class: 'ap-f-n ' + (p.f >= 7 ? 'sv-pos' : p.f <= 3 ? 'sv-neg' : '') }, String(p.f)), h('span', null, ' / 9')) : null,
+      lista, h('p', { class: 'sv-kpi-r' }, gTxt, ' ', A.ayuda('greenblatt')));
   }
 
   function tarjetaDescripcion(e) {
@@ -642,7 +747,7 @@
     const cb = fc ? MOTOR.camino(e.trays.base, aj) : null, media5 = fc ? cb.gr.slice(0, 5).reduce((s, x) => s + x, 0) / 5 : null;
     const cambiado = A.parCambiado() || A.ajCambiado(e.ticker);
     const veredicto = v.central <= 0 || !v.valido ? 'Sin valor significativo con este modelo' : ms >= 0.25 ? 'Infravalorada con margen de seguridad (≥ 25 %)' : v.pot > 0.05 ? 'Ligeramente infravalorada' : v.pot >= -0.05 ? 'En línea con su valor' : v.pot >= -0.25 ? 'Ligeramente sobrevalorada' : 'Sobrevalorada';
-    const imprimir = h('button', { type: 'button', class: 'ap-inst' }, 'Imprimir o guardar en PDF');
+    const imprimir = h('button', { type: 'button', class: 'ap-inst' }, A.leer('sp-inf-lang', 'es') === 'ca' ? 'Imprimir o desar en PDF' : 'Imprimir o guardar en PDF');
     imprimir.addEventListener('click', () => window.print());
     const P = (txt) => h('p', null, txt);
     const est = A.D.estado || {};
@@ -691,7 +796,13 @@
         G.caja(240, (c) => G.cascada(c, [{ n: 'AFFO años 1–10', v: b.va, tipo: 'suma' }, { n: 'Valor terminal', v: b.vaTv, tipo: 'suma' }, { n: 'Valor por acción', v: b.vps, tipo: 'total' }])),
         P(`P/FFO que justifica el caso base: ${veces(b.vps / e.reit.ffo_ps, 1)}; la cotización está a ${veces(e.cotizacion / e.reit.ffo_ps, 1)}.`)];
     }
-    main.append(h('div', { class: 'ap-inf-bar no-print' }, A.migas([['Mercado', '#/mercado'], [e.nombre, '#/empresa/' + e.ticker], ['Informe']]), imprimir));
+    const lang = A.leer('sp-inf-lang', 'es') === 'ca' ? 'ca' : 'es';
+    const selLang = h('div', { class: 'sv-seg ap-idioma', role: 'group', 'aria-label': 'Idioma del informe' }, [['es', 'Castellano'], ['ca', 'Català']].map(([k, t]) => {
+      const bt = h('button', { type: 'button', 'aria-pressed': String(k === lang), lang: k }, t);
+      bt.addEventListener('click', () => { A.escribir('sp-inf-lang', k); A.programar(); });
+      return bt;
+    }));
+    main.append(h('div', { class: 'ap-inf-bar no-print' }, A.migas([['Mercado', '#/mercado'], [e.nombre, '#/empresa/' + e.ticker], ['Informe']]), h('div', { class: 'ap-tit-b' }, selLang, imprimir)));
     const doc = h('article', { class: 'ap-inf' },
       h('header', { class: 'ap-inf-cab' },
         h('p', { class: 'ap-inf-mini' }, `Informe de valoración · Simulador S&P 500 · datos del ${fecha(est.fecha_mercado || A.D.pa.fecha_cotizacion)}`),
@@ -715,16 +826,26 @@
       tarjetaComparables(e), tarjetaGraham(e), tarjetaAnalistas(e, v),
       h('h2', null, '7. Datos y supuestos'),
       fc ? tarjetaSupuestos(e, v) : tarjetaSupuestosF2(e, v),
-      h('p', { class: 'ap-inf-pie' }, `Modelo automático con reglas comunes para todas las empresas del S&P 500 (${M.n.toLowerCase()}; consenso de analistas en los años 1–2, convergencia a largo plazo, CAPM y múltiplos de comparables). Herramienta formativa: no es una recomendación de inversión. Datos de Yahoo Finance.`));
+      h('p', { class: 'ap-inf-pie' }, e.revisada_activa ? `Valoración revisada empresa a empresa en el Simulador 7M (${M.c}; supuestos de crecimiento, márgenes, inversión y comparables revisados), con el mismo motor que el resto del S&P 500. Herramienta formativa: no es una recomendación de inversión. Datos de Yahoo Finance.`
+        : `Modelo automático con reglas comunes para todas las empresas del S&P 500 (${M.c}; consenso de analistas en los años 1–2, convergencia a largo plazo, CAPM y múltiplos de comparables). Herramienta formativa: no es una recomendación de inversión. Datos de Yahoo Finance.`));
     main.append(doc);
+    if (lang === 'ca') {
+      doc.lang = 'ca'; doc.style.visibility = 'hidden';
+      A.cargarScript('js/catala.js').then(() => A.catala(doc)).catch(() => {}).finally(() => { doc.style.visibility = ''; });
+    }
   };
+  const scripts = {};
+  A.cargarScript = (src) => scripts[src] || (scripts[src] = new Promise((ok, ko) => {
+    const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => { delete scripts[src]; ko(new Error('No se pudo cargar ' + src)); }; document.head.append(s);
+  }));
 
   // ---------------------------------------------------------------- MÉTODO
   V.metodo = function (main) {
     const R = (A.D.estado || {}).no_valoradas || {};
     const li = (b, txt) => h('li', null, h('b', null, b + ' '), txt);
     main.append(h('header', { class: 'sv-head' }, h('h1', { class: 'sv-h1' }, 'Cómo se calcula'),
-      h('p', { class: 'sv-take' }, 'Las mismas reglas para todas las empresas, con los criterios del modelo de las 7 Magníficas pero sin ajustes manuales empresa a empresa.')));
+      h('p', { class: 'sv-take' }, 'Las mismas reglas para todas las empresas, con los criterios del modelo de las 7 Magníficas pero sin ajustes manuales empresa a empresa (salvo las propias 7 Magníficas, que usan su valoración revisada).'),
+      h('p', { class: 'sv-meta' }, h('a', { href: '#/glosario' }, 'Glosario de términos ›'))));
     const n = (m) => A.D.emp.filter((e) => e.valorada && e.modelo === m).length;
     main.append(A.tarjeta('Tres modelos según el tipo de empresa', null, h('ul', { class: 'sv-method' },
       li(`DCF de flujos de caja libres (${n('fcff')} empresas).`, 'Empresas industriales, tecnológicas, de consumo, salud, energía, etc.: el valor es el de sus flujos de caja libres para todos los inversores, menos la deuda neta.'),
@@ -740,7 +861,9 @@
       li('Valor terminal.', 'Por inductores: NOPAT del año 11 × (1 − g / ROIC terminal) / (WACC − g), con el ROIC terminal entre el WACC y el ROIC del año 10 (tope del 40 %). Alternativa: Gordon.'),
       li('Múltiplos.', 'PER y EV/EBITDA adelantados de las empresas del S&P 500 de su misma subindustria (de su industria si en la subindustria hay menos de cinco con múltiplos válidos, y de su sector si aun así hay menos de tres), las diez más parecidas en tamaño; se descartan PER por encima de 60 y EV/EBITDA por encima de 40.'),
       li('Valor central.', '50 % DCF ponderado por escenarios (25/50/25) + 50 % media de los valores por PER y EV/EBITDA. Margen de seguridad = 1 − cotización ÷ valor.'),
-      li('Fiabilidad.', 'Se marcan las valoraciones con beneficio operativo negativo, patrimonio negativo en algún escenario, valor central menor del 20 % o mayor del triple de la cotización, sin consenso o con mucho peso del valor terminal. Las graves se excluyen por defecto del filtro de oportunidades.'))));
+      li('Fiabilidad.', 'Se marcan las valoraciones con beneficio operativo negativo, patrimonio negativo en algún escenario, valor central menor del 20 % o mayor del triple de la cotización, sin consenso o con mucho peso del valor terminal. Las graves se excluyen por defecto del filtro de oportunidades.'),
+      li('Fusiones, adquisiciones y consensos no comparables.', 'Si el consenso del próximo trimestre prevé un salto de ventas incompatible con el último trimestre publicado (más de un 50 % por encima o un 40 % por debajo), o parte de unas ventas del año anterior distintas de las publicadas (cifras pro forma), el consenso no es comparable con los estados financieros: suele ser una empresa comprada o vendida que las cuentas todavía no recogen, aunque también puede ser un cambio brusco de ciclo o una definición distinta de los ingresos (por ejemplo, ingresos netos en las bolsas). En ese caso los años 1–2 siguen la tendencia histórica y la valoración se marca como poco fiable para revisarla.'),
+      li('Las 7 Magníficas.', 'Por defecto usan la valoración revisada a mano en el Simulador 7M (crecimiento, márgenes, inversión, beta y comparables), con el mismo motor. Se puede volver al modelo automático en los supuestos generales.'))));
     main.append(A.tarjeta('Beneficio residual', null, h('ul', { class: 'sv-method' },
       li('Fórmula.', 'Valor por acción = valor contable + valor actual de (ROE − Ke) × valor contable de cada año + valor terminal (el beneficio residual del año 11 creciendo a g). Es equivalente a descontar dividendos, pero parte del valor contable, que en estos negocios es una buena medida del capital invertido.'),
       li('Años 1–2.', 'BPA del consenso (mínimo, medio y máximo) llevado a doce meses desde el último trimestre publicado; el ROE es ese BPA sobre el valor contable de cada año.'),
@@ -756,8 +879,19 @@
     main.append(A.tarjeta('Filtro de oportunidades (inversión en valor)', null, h('ul', { class: 'sv-method' },
       li('Idea.', 'Benjamin Graham proponía comprar solo con un margen de seguridad: que el valor estimado supere con holgura a la cotización, para cubrir errores de estimación.'),
       li('Valor de referencia.', 'Puedes exigir el margen sobre el valor bajo (el más prudente), el escenario pesimista del modelo intrínseco, el valor central, el caso base o el valor alto.'),
-      li('Criterios del inversor defensivo.', 'PER ≤ 15; precio/valor contable ≤ 1,5 (o PER × P/VC ≤ 22,5); liquidez ≥ 2; deuda neta ≤ 3 × EBITDA; beneficios y dividendos todos los años disponibles; crecimiento del BPA ≥ 10 %; cotización por debajo del número de Graham. Los históricos de Yahoo cubren unos 4 años, no los 10–20 que pedía Graham. Como en Graham, la liquidez no se exige a financieras, eléctricas ni REIT; en las eléctricas la solidez es deuda ≤ 2 × patrimonio, en los REIT deuda neta ≤ 6 × EBITDA y en bancos y aseguradoras no se aplica.'),
-      li('Aviso.', 'Es un filtro para encontrar candidatas que estudiar a fondo, no una recomendación de compra: el modelo es automático y no conoce hechos recientes (fusiones, litigios, cambios de negocio).'))));
+      li('Criterios del inversor defensivo.', 'PER ≤ 15; precio/valor contable ≤ 1,5 (o PER × P/VC ≤ 22,5); liquidez ≥ 2; deuda neta ≤ 3 × EBITDA; beneficios positivos los 10 últimos años; dividendos ininterrumpidos 10 años; crecimiento del BPA de al menos un tercio en 10 años (medias de tres años al principio y al final); cotización por debajo del número de Graham. La historia de 10 años sale de los estados financieros presentados a la SEC; si una empresa no la tiene, se usan los 4 años de Yahoo (y un crecimiento del BPA ≥ 10 %). Como en Graham, la liquidez no se exige a financieras, eléctricas ni REIT; en las eléctricas la solidez es deuda ≤ 2 × patrimonio, en los REIT deuda neta ≤ 6 × EBITDA y en bancos y aseguradoras no se aplica.'),
+      li('Puntuación F de Piotroski.', 'Nueve señales con los dos últimos ejercicios anuales, un punto cada una: rentabilidad sobre activos positiva y creciente, flujo de explotación positivo y mayor que el beneficio, menos deuda a largo plazo sobre activos, más liquidez, sin emitir acciones, más margen bruto y más rotación de activos.'),
+      li('Fórmula mágica de Greenblatt.', 'Se ordenan las empresas valoradas por DCF (sin financieras ni eléctricas) por rentabilidad del beneficio (EBIT ÷ valor de la empresa) y por rentabilidad del capital (EBIT ÷ activo fijo neto + NOF); la suma de los dos puestos da la clasificación.'),
+      li('Aviso.', 'Es un filtro para encontrar candidatas que estudiar a fondo, no una recomendación de compra: el modelo es automático y no conoce todos los hechos recientes (litigios, cambios de negocio).'))));
+    main.append(A.tarjeta('Seguimiento semanal y avisos', null, h('ul', { class: 'sv-method' },
+      li('Estrategias.', `${CRIT.ESTRATEGIAS.map((x) => x.n).join('; ')}. Cada lunes se guardan sus candidatas con los supuestos por defecto.`),
+      li('Rentabilidad.', 'La de cada semana es la media, con pesos iguales, de la variación de la cotización de las candidatas de la semana anterior (sin dividendos ni costes), y se compara con el S&P 500 y con la media de todas las empresas valoradas.'),
+      li('Avisos por correo.', 'Al terminar la actualización se abre un aviso (issue) en GitHub con las empresas que entran y salen de cada estrategia y con las empresas seguidas que se mueven más de un 10 %; GitHub lo envía por correo.'))));
+    main.append(A.tarjeta('Más datos', null, h('ul', { class: 'sv-method' },
+      li('Historia de 10 años.', 'Ventas, beneficio, BPA, dividendos, patrimonio y flujo de explotación de los formularios 10-K presentados a la SEC (API XBRL "frames", por año natural). BPA y dividendo por acción ajustados por splits.'),
+      li('Cotizaciones.', 'Cierres semanales de los últimos 5 años de Yahoo Finance, y el S&P 500 para comparar.'),
+      li('Excel.', 'Desde la ficha de cada empresa se puede descargar la valoración en una hoja de cálculo con fórmulas: los supuestos en amarillo, la proyección de los tres escenarios, el valor terminal, los múltiplos y el valor central.'),
+      li('Glosario.', h('a', { href: '#/glosario' }, 'Todos los términos explicados ›')))));
     if (Object.keys(R).length) main.append(A.tarjeta('Empresas sin valorar', 'Componentes del índice que no se valoran esta semana.',
       h('ul', { class: 'sv-method' }, Object.entries(R).map(([m, n]) => h('li', null, `${m}: ${n}`)))));
     main.append(A.tarjeta('Versión', null, h('p', { class: 'sv-card-n' }, `App ${A.VERSION}. Datos actualizados el ${fecha((A.D.estado || {}).actualizado)}.`)));

@@ -1,0 +1,19 @@
+{
+  "_nota": "Empresas que sigues (tickers) y umbral de variación semanal (0,10 = 10 %) a partir del cual se destacan en el aviso del lunes. Estrategias cuyas entradas y salidas se avisan: margen25, graham, greenblatt, piotroski.",
+  "seguir": [
+    "AAPL",
+    "MSFT",
+    "NVDA",
+    "GOOGL",
+    "AMZN",
+    "META",
+    "TSLA"
+  ],
+  "umbral": 0.1,
+  "estrategias": [
+    "margen25",
+    "graham",
+    "greenblatt",
+    "piotroski"
+  ]
+}

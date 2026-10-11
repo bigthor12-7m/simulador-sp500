@@ -23,6 +23,8 @@ jobs:
           python-version: "3.12"
       - run: pip install -r pipeline/requirements.txt
       - run: python pipeline/descargar.py --salida /tmp/brutos --max ${{ inputs.max }}
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
       - name: Guardar en la rama brutos
         run: |
           cd /tmp/brutos
