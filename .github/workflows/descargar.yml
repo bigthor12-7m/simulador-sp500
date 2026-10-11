@@ -1,0 +1,33 @@
+name: Descargar datos brutos
+
+# Descarga los datos brutos (lista del S&P 500 y Yahoo Finance) y los guarda en la rama "brutos".
+# Sirve para revisar o depurar los cálculos; la actualización semanal de la app no depende de esta rama.
+on:
+  workflow_dispatch:
+    inputs:
+      max:
+        description: "Número máximo de empresas (0 = todas)"
+        default: "0"
+
+permissions:
+  contents: write
+
+jobs:
+  descargar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r pipeline/requirements.txt
+      - run: python pipeline/descargar.py --salida /tmp/brutos --max ${{ inputs.max }}
+      - name: Guardar en la rama brutos
+        run: |
+          cd /tmp/brutos
+          git init -q -b brutos
+          git config user.name "actualizador-semanal"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -q -m "Datos brutos $(date -u +%F)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" brutos
