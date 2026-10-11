@@ -6,6 +6,24 @@ Si la SEC no responde (o rechaza las peticiones), se abandona pronto: la app con
 import datetime as dt, time
 
 UA = "simulador-sp500 bigthor12-7m@users.noreply.github.com"
+# alternativas que se prueban si la SEC rechaza la primera (la SEC exige "Nombre contacto@dominio")
+UAS = [UA, "Simulador SP500 bigthor12-7m@users.noreply.github.com",
+       "bigthor12-7m simulador-sp500 (bigthor12-7m@users.noreply.github.com)",
+       "Mozilla/5.0 (compatible; SimuladorSP500/1.0; +https://github.com/bigthor12-7m/simulador-sp500; bigthor12-7m@users.noreply.github.com)"]
+
+
+def elegir_ua(s, url):
+    """Prueba los User-Agent hasta que uno no sea rechazado; devuelve (ua, estados por ua)."""
+    prueba = {}
+    for ua in UAS:
+        try:
+            r = s.get(url, headers={"User-Agent": ua}, timeout=(10, 40))
+            prueba[ua] = r.status_code
+            if r.status_code not in (401, 403): return ua, prueba
+        except Exception as ex:
+            prueba[ua] = type(ex).__name__
+        time.sleep(1)
+    return None, prueba
 # concepto -> lista de (taxonomía, etiqueta, unidad, instantáneo); se usa la primera que exista para cada empresa y año
 CONCEPTOS = {
     "ventas": [("us-gaap", "Revenues", "USD", False), ("us-gaap", "RevenueFromContractWithCustomerExcludingAssessedTax", "USD", False),
@@ -34,6 +52,10 @@ def descargar(ciks, anios=11):
     ultimo = hoy.year - 1 if hoy.month > 3 else hoy.year - 2  # año natural ya cerrado y presentado
     años = list(range(ultimo - anios + 1, ultimo + 1))
     out, errores, estados, t0, ok = {}, 0, {}, time.time(), 0
+    ua, prueba = elegir_ua(s, f"https://data.sec.gov/api/xbrl/frames/us-gaap/NetIncomeLoss/USD/CY{años[-1]}.json")
+    estados["user_agent"] = prueba
+    if not ua: raise RuntimeError(f"La SEC rechaza todos los User-Agent probados: {prueba}")
+    s.headers["User-Agent"] = ua
     for concepto, etiquetas in CONCEPTOS.items():
         for tax, tag, unidad, inst in etiquetas:
             for a in años:
