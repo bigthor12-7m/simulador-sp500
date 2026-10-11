@@ -40,7 +40,9 @@
     "margen10_banda_rel": 0.3,
     "beta_relevada_min": 0.4,
     "beta_relevada_max": 3.0,
-    "beta_final_min": 0.6
+    "beta_final_min": 0.6,
+    "minimo_valoradas": 300,
+    "comparables_min_subindustria": 5
   },
   "rating_sintetico": {
     "_fuente": "Rating sintético por cobertura de intereses (EBIT / gastos financieros) para grandes empresas no financieras, con diferenciales de referencia aproximados de la tabla de A. Damodaran. Editable.",

@@ -63,7 +63,8 @@
     }));
     const ms = h('input', { class: 'sv-range', id: 'op-ms', type: 'range', min: 0, max: 0.6, step: 0.05 });
     ms.value = op.ms; ms.style.accentColor = 'var(--s1)';
-    ms.addEventListener('input', () => cambiar((o) => { o.ms = Number(ms.value); }));
+    ms.addEventListener('change', () => cambiar((o) => { o.ms = Number(ms.value); }));
+    ms.addEventListener('input', () => { const x = A.$('#op-ms-v'); if (x) x.textContent = pct(Number(ms.value), 0); });
     const secs = Object.keys(A.D.jer).sort((a, b) => a.localeCompare(b, 'es'));
     const chipsSec = h('div', { class: 'sv-chips' }, secs.map((s) => {
       const conVal = Object.values(A.D.jer[s]).flat().some((e) => e.valorada);
@@ -83,7 +84,8 @@
     }));
     const minG = h('input', { class: 'sv-range', id: 'op-ming', type: 'range', min: 0, max: A.CRITERIOS.length, step: 1 });
     minG.value = op.minG; minG.style.accentColor = 'var(--s1)';
-    minG.addEventListener('input', () => cambiar((o) => { o.minG = Number(minG.value); }));
+    minG.addEventListener('change', () => cambiar((o) => { o.minG = Number(minG.value); }));
+    minG.addEventListener('input', () => { const x = A.$('#op-ming-v'); if (x) x.textContent = `${minG.value} de ${A.CRITERIOS.length}`; });
     const fia = h('input', { type: 'checkbox', id: 'op-fia' }); fia.checked = op.fiables;
     fia.addEventListener('change', () => cambiar((o) => { o.fiables = fia.checked; }));
     const cap = h('select', { id: 'op-cap', class: 'ap-sel' }, CAPS.map(([x, t]) => { const o = h('option', { value: x }, t); if (x === op.cap) o.selected = true; return o; }));
@@ -99,10 +101,10 @@
       h('h2', { class: 'sv-card-t' }, 'Filtros'),
       h('div', { class: 'sv-ctrls ap-op-ctrls' },
         h('div', { class: 'sv-grp' }, h('p', { class: 'sv-grp-t' }, 'Valor de referencia'), segRef, h('span', { class: 'sv-ctrl-d' }, ref.d),
-          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-ms' }, 'Margen de seguridad mínimo'), h('span', { class: 'sv-ctrl-v' }, pct(op.ms, 0))), ms,
+          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-ms' }, 'Margen de seguridad mínimo'), h('span', { class: 'sv-ctrl-v', id: 'op-ms-v' }, pct(op.ms, 0))), ms,
             h('span', { class: 'sv-ctrl-d' }, op.ms > 0 ? `La cotización, como mucho el ${pct(1 - op.ms, 0)} del valor (potencial de al menos ${pct(op.ms / (1 - op.ms), 0, true)}).` : 'Cualquier empresa que cotice por debajo de su valor.'))),
         h('div', { class: 'sv-grp' }, h('p', { class: 'sv-grp-t' }, 'Criterios de Graham que se exigen'), checks,
-          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-ming' }, 'Puntuación mínima de Graham'), h('span', { class: 'sv-ctrl-v' }, `${op.minG} de ${A.CRITERIOS.length}`)), minG)),
+          h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: 'op-ming' }, 'Puntuación mínima de Graham'), h('span', { class: 'sv-ctrl-v', id: 'op-ming-v' }, `${op.minG} de ${A.CRITERIOS.length}`)), minG)),
         h('div', { class: 'sv-grp' }, h('p', { class: 'sv-grp-t' }, 'Universo'), h('div', { class: 'sv-chips' }, chipsSec), todosSec,
           h('label', { class: 'ap-op-c', for: 'op-cap' }, 'Capitalización ', cap),
           h('label', { class: 'ap-op-c', for: 'op-fia' }, fia, ' Solo valoraciones fiables (sin avisos graves)'))),

@@ -255,11 +255,14 @@
   }
 
   // control deslizante con etiqueta, valor y nota
-  function control(id, etiqueta, attrs, valor, txt, nota, alCambiar) {
+  // control deslizante: mientras se arrastra solo cambia la cifra; al soltar se recalcula la página
+  function control(id, etiqueta, attrs, valor, fmt, nota, alCambiar) {
     const inp = h('input', Object.assign({ class: 'sv-range', id, type: 'range' }, attrs));
     inp.value = valor; inp.style.accentColor = 'var(--s1)';
-    inp.addEventListener('input', () => alCambiar(Number(inp.value)));
-    return h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: id }, etiqueta), h('span', { class: 'sv-ctrl-v' }, txt)), inp, h('span', { class: 'sv-ctrl-d' }, nota));
+    const val = h('span', { class: 'sv-ctrl-v' }, typeof fmt === 'function' ? fmt(Number(valor)) : fmt);
+    if (typeof fmt === 'function') inp.addEventListener('input', () => { val.textContent = fmt(Number(inp.value)); });
+    inp.addEventListener('change', () => alCambiar(Number(inp.value)));
+    return h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('label', { for: id }, etiqueta), val), inp, h('span', { class: 'sv-ctrl-d' }, nota));
   }
 
   function tarjetaAjustes(e, aj, v, vd) {
@@ -284,19 +287,19 @@
       h('div', { class: 'sv-detail-h' }, h('h2', { class: 'sv-card-t' }, `Supuestos de ${e.nombre}`), reset),
       h('p', { class: 'sv-card-n' }, 'Se aplican a los tres escenarios. El crecimiento se ajusta en los años 1–9 y converge al del año 10; el margen se ajusta a partir del año 3 hasta llegar entero al año 10.'),
       h('div', { class: 'sv-ctrls' },
-        control('aj-beta', 'Beta', { min: Math.max(0.3, Math.round((e.beta - 1) * 100) / 100), max: Math.round((e.beta + 1) * 100) / 100, step: 0.01 }, aj.beta, num(aj.beta, 2),
+        control('aj-beta', 'Beta', { min: Math.max(0.3, Math.round((e.beta - 1) * 100) / 100), max: Math.round((e.beta + 1) * 100) / 100, step: 0.01 }, aj.beta, (x) => num(x, 2),
           `Por defecto: ${num(e.beta, 2)} (media de la de Yahoo, ${num(e.beta_yahoo, 2)}, y la de su industria con su deuda, ${num(e.beta_sector_apalancada, 2)})`, set('beta')),
-        control('aj-dg', 'Crecimiento de las ventas (años 1–9)', { min: -0.1, max: 0.1, step: 0.005 }, aj.dg, pp(aj.dg, 1),
+        control('aj-dg', 'Crecimiento de las ventas (años 1–9)', { min: -0.1, max: 0.1, step: 0.005 }, aj.dg, (x) => pp(x, 1),
           `Caso base, media años 1–5: ${pct(media5(cb.gr), 1)} · por defecto: ${pct(media5(e.trays.base.gr), 1)}`, set('dg')),
-        control('aj-dm', 'Margen EBITA a largo plazo (año 10)', { min: -0.15, max: 0.15, step: 0.005, disabled: expl }, aj.dm, pp(aj.dm, 1),
+        control('aj-dm', 'Margen EBITA a largo plazo (año 10)', { min: -0.15, max: 0.15, step: 0.005, disabled: expl }, aj.dm, (x) => pp(x, 1),
           expl ? 'Sin efecto: el margen sale del retorno de la inversión' : `Caso base, año 10: ${pct(cb.mg[9], 1)} · por defecto: ${pct(e.trays.base.mg[9], 1)}`, set('dm'))),
       h('div', { class: 'sv-inv' }, h('p', { class: 'sv-grp-t' }, 'Retorno de la nueva inversión'),
         h('div', { class: 'sv-ctrls' },
           h('div', { class: 'sv-ctrl' }, h('div', { class: 'sv-ctrl-l' }, h('span', null, 'Cómo se proyecta el beneficio')), seg,
             h('span', { class: 'sv-ctrl-d' }, aplica ? 'Por defecto: margen del consenso' : `${e.nombre} apenas necesita capital para crecer: su beneficio no depende de esta palanca.`)),
-          control('aj-ronic', 'Rentabilidad de la nueva inversión (RONIC)', { min: 0, max: 0.6, step: 0.005, disabled: !expl }, ronic == null ? 0 : ronic, ronic == null ? 'n.s.' : pct(ronic, 1),
+          control('aj-ronic', 'Rentabilidad de la nueva inversión (RONIC)', { min: 0, max: 0.6, step: 0.005, disabled: !expl }, ronic == null ? 0 : ronic, (x) => (ronic == null && !expl ? 'n.s.' : pct(x, 1)),
             v.ronicImpl != null ? `Implícita en el consenso: ${pct(v.ronicImpl, 1)} · WACC ${pct(v.w, 1)}` : 'No significativa', set('ronic')),
-          control('aj-lag', 'Años hasta que la inversión rinde', { min: 1, max: 3, step: 1, disabled: !aplica }, aj.lag, aj.lag === 1 ? '1 año' : `${aj.lag} años`, 'La inversión de un año empieza a rendir en el año indicado después', set('lag')))),
+          control('aj-lag', 'Años hasta que la inversión rinde', { min: 1, max: 3, step: 1, disabled: !aplica }, aj.lag, (x) => (x === 1 ? '1 año' : `${x} años`), 'La inversión de un año empieza a rendir en el año indicado después', set('lag')))),
       A.ajCambiado(e.ticker) && vd ? h('p', { class: 'sv-kpi-r' }, `Con los supuestos por defecto de la empresa: valor central ${usd(vd.central)} (${pct(vd.pot, 0, true)}).`) : null);
   }
 
@@ -429,7 +432,7 @@
     // tabla de métricas
     const fil = [
       ['Sector', (e) => e.sector], ['Subindustria', (e) => e.subindustria], ['Cotización', (e) => usd(e.cotizacion, 2)], ['Capitalización', (e) => mill(e.cap)],
-      ['Valor central', (e, v) => (v ? usd(v.central) : '—'), true], ['Potencial', (e, v) => (v ? A.potSpan(v.pot) : '—'), true], ['Margen de seguridad', (e, v) => (v && v.central > 0 ? pct(A.margenSeg(v.central, e.cotizacion), 0) : '—')],
+      ['Valor central', (e, v) => (v ? usd(v.central) : '—'), true], ['Potencial', (e, v) => (v ? A.potSpan(v.pot) : '—'), true], ['Margen de seguridad', (e, v) => { const m = v && v.central > 0 ? A.margenSeg(v.central, e.cotizacion) : null; return m != null && m > 0 ? pct(m, 0) : 'sin margen'; }],
       ['Rango (bajo – alto)', (e, v) => (v ? `${usd(v.bajo)} – ${usd(v.alto)}` : '—')],
       ['DCF pesimista · base · optimista', (e, v) => (v ? A.ESC.map((sc) => num(v.res[sc].vps, 0)).join(' · ') : '—')], ['Valor por múltiplos', (e, v) => (v ? usd(v.mm) : '—')],
       ['WACC', (e, v) => (v ? pct(v.w, 1) : '—')], ['Beta', (e) => num(e.beta, 2)], ['Rating sintético', (e) => e.rating || '—'],
@@ -530,7 +533,7 @@
       li('Inversión.', 'CapEx sobre ventas de los últimos doce meses que converge a 1,25 veces la amortización si hoy es mayor; NOF constantes sobre ventas.'),
       li('WACC.', 'Ke = tipo sin riesgo + beta × prima de riesgo. Beta = media de la beta de Yahoo (5 años) y la beta de su industria desapalancada y vuelta a apalancar con la deuda de la empresa, con un mínimo de 0,6. Coste de la deuda = tipo sin riesgo + diferencial por rating sintético (cobertura de intereses).'),
       li('Valor terminal.', 'Por inductores: NOPAT del año 11 × (1 − g / ROIC terminal) / (WACC − g), con el ROIC terminal entre el WACC y el ROIC del año 10 (tope del 40 %). Alternativa: Gordon.'),
-      li('Múltiplos.', 'PER y EV/EBITDA adelantados de las empresas del S&P 500 de su misma subindustria (o industria o sector si hay menos de tres), las diez más parecidas en tamaño; se descartan PER por encima de 60 y EV/EBITDA por encima de 40.'),
+      li('Múltiplos.', 'PER y EV/EBITDA adelantados de las empresas del S&P 500 de su misma subindustria (de su industria si en la subindustria hay menos de cinco con múltiplos válidos, y de su sector si aun así hay menos de tres), las diez más parecidas en tamaño; se descartan PER por encima de 60 y EV/EBITDA por encima de 40.'),
       li('Valor central.', '50 % DCF ponderado por escenarios (25/50/25) + 50 % media de los valores por PER y EV/EBITDA. Margen de seguridad = 1 − cotización ÷ valor.'),
       li('Fiabilidad.', 'Se marcan las valoraciones con beneficio operativo negativo, patrimonio negativo en algún escenario, valor central menor del 20 % o mayor del triple de la cotización, sin consenso o con mucho peso del valor terminal. Las graves se excluyen por defecto del filtro de oportunidades.'))));
     main.append(A.tarjeta('Filtro de oportunidades (inversión en valor)', null, h('ul', { class: 'sv-method' },

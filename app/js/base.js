@@ -128,6 +128,7 @@ window.APP = (function () {
     divisa: { t: 'Estados financieros en otra divisa', grave: true },
     sin_multiplos: { t: 'Sin comparables con múltiplos válidos: valor central solo con DCF', grave: false },
     balance_antiguo: { t: 'Último balance de hace más de 7 meses', grave: false },
+    datos_anteriores: { t: 'Sin datos nuevos de Yahoo esta semana: se mantienen los de la semana anterior', grave: false },
   };
 
   // ---------------------------------------------------------------- comparador

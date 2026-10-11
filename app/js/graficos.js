@@ -82,7 +82,7 @@
       .attr('font-weight', (d) => (d.sel ? 600 : 400)).style('fill', 'var(--color-fg)').text((d) => d.n)
       .each(function (d) { // recorta nombres largos
         const t = d3.select(this); let s = d.n;
-        while (this.getComputedTextLength() > ml - 16 && s.length > 4) { s = s.slice(0, -2); t.text(s + '…'); }
+        while (this.getComputedTextLength() > ml - 12 && s.length > 4) { s = s.slice(0, -2); t.text(s + '…'); }
       });
     fila.append('text').attr('x', w - mr + 10).attr('y', (d, i) => y(i)).attr('dy', '0.35em').attr('font-size', 12).attr('font-weight', 600)
       .style('fill', (d) => (d.ce >= 0 ? 'var(--color-ok)' : 'var(--color-bad)')).text((d) => pct(d.ce, 0, true));
@@ -346,7 +346,9 @@
     g.append('rect').attr('x', 0).attr('width', w).attr('y', (d, i) => y(i)).attr('height', rowH).style('fill', 'transparent');
     g.append('rect').attr('x', (d) => x(Math.min(0, d.v))).attr('width', (d) => Math.max(1.5, Math.abs(x(d.v) - x(0)))).attr('y', (d, i) => y(i) + rowH * 0.2).attr('height', rowH * 0.6).attr('rx', 3)
       .style('fill', (d) => d.color || (d.v >= 0 ? 'var(--color-ok)' : 'var(--color-bad)')).attr('fill-opacity', 0.75);
-    g.append('text').attr('x', ml - 10).attr('y', (d, i) => y(i) + rowH / 2).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', 'var(--color-fg)').text((d) => d.n);
+    g.append('text').attr('x', ml - 10).attr('y', (d, i) => y(i) + rowH / 2).attr('dy', '0.35em').attr('text-anchor', 'end').attr('font-size', 12).style('fill', 'var(--color-fg)').text((d) => d.n)
+      .each(function (d) { const t = d3.select(this); let s = d.n; while (this.getComputedTextLength() > ml - 14 && s.length > 4) { s = s.slice(0, -2); t.text(s + '…'); } })
+      .append('title').text((d) => d.n);
     g.append('text').attr('x', (d) => (d.v >= 0 ? x(d.v) + 6 : x(0) + 6)).attr('y', (d, i) => y(i) + rowH / 2).attr('dy', '0.35em').attr('font-size', 11.5).attr('font-weight', 600)
       .style('fill', 'var(--color-fg)').text((d) => (opts.fmt || ((z) => pct(z, 0, true)))(d.v));
     g.on('click', (ev, d) => opts.clic && opts.clic(d))

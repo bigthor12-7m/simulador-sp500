@@ -73,10 +73,11 @@ class Serie:
 
 def nombre_corto(s):
     s = re.sub(r"\s*\(The\)$", "", s.strip())
+    s = re.sub(r"\s*\(Class [A-Z]\)$", "", s)
     s = re.sub(r"^The\s+", "", s)
     for suf in [", Inc.", " Inc.", " Incorporated", " Corporation", " Corp.", " Corp", " plc", " PLC", " Ltd.", " Limited", " N.V.", " S.A.",
                 " Co.", " Company", " & Co", ", L.P.", " Holdings", " Group"]:
-        if s.endswith(suf) and len(s) > len(suf) + 2: s = s[: -len(suf)].rstrip(",")
+        if s.endswith(suf) and len(s) > len(suf) + 2 and not s[: -len(suf)].rstrip().endswith("&"): s = s[: -len(suf)].rstrip(",")
     return s.strip()
 
 
@@ -434,7 +435,7 @@ def multiplos(e, F, por_sub, por_ind, por_sec):
     if not own: return None, []
     validos = lambda grupo: [x for x in grupo if x["ticker"] != t and F.get(x["ticker"]) and (F[x["ticker"]]["per_fwd"] or F[x["ticker"]]["ev_ebitda_fwd"])]
     nivel, peers = "subindustria", validos(por_sub[e["subindustria_gics"]])
-    if len(peers) < R["comparables_min"]:
+    if len(peers) < R.get("comparables_min_subindustria", 5):  # con pocas, la mediana es muy sensible: se amplía a la industria
         nivel, peers = "industria", validos(por_ind[e["industria"]])
     if len(peers) < R["comparables_min"]:
         nivel, peers = "sector", validos(por_sec[e["sector"]])
@@ -485,9 +486,18 @@ def main():
     rf = round(tnx / 100, 4) if tnx else CONF["parametros"]["tipo_sin_riesgo_inicial"]
     if not tnx: avisos.append("No se pudo leer el Treasury a 10 años: se usa el tipo sin riesgo de referencia.")
 
+    # registros de la semana anterior: se reutilizan si la descarga de una empresa falla esta semana
+    try:
+        previo = {e["ticker"]: e for e in json.load(open(sal / "empresas.json", encoding="utf-8"))}
+    except Exception:
+        previo = {}
+    reutilizadas = []
     emp, cons = [], {}
     for c in lista["componentes"]:
         y = Y.get(c["ticker"]) or {}
+        if (not y.get("qs") or not y.get("ts")) and c["ticker"] in previo:
+            e = dict(previo[c["ticker"]]); e["avisos"] = list(e.get("avisos") or []) + ["datos_anteriores"]
+            emp.append(e); reutilizadas.append(c["ticker"]); continue
         if not y.get("qs"):
             sec_es = CONF["sectores"].get(c["sector"], c["sector"])
             sub_es, ind_es = CONF["subindustrias"].get(c["subindustria"], [c["subindustria"], c["subindustria"]])
@@ -508,10 +518,16 @@ def main():
         if C is not None and "_anc" in e: cons[e["ticker"]] = C
 
     cand = [e for e in emp if "_anc" in e]
+    previas = [e for e in emp if "datos_anteriores" in (e.get("avisos") or []) and e.get("valorada")]
     # betas que faltan: mediana de la subindustria
     por_sub, por_ind, por_sec = {}, {}, {}
     for e in cand:
         por_sub.setdefault(e["subindustria_gics"], []).append(e)
+    for e in previas:
+        por_sub.setdefault(e["subindustria_gics"], [])
+        por_ind.setdefault(e["industria"], [])
+        por_sec.setdefault(e["sector"], [])
+    for e in cand:
         por_ind.setdefault(e["industria"], []).append(e)
         por_sec.setdefault(e["sector"], []).append(e)
     def mediana_grupo(e, f):
@@ -563,13 +579,17 @@ def main():
             desc[e["ticker"]] = {"d": (apf.get("longBusinessSummary") or "")[:1400], "web": apf.get("website"), "empleados": apf.get("fullTimeEmployees"),
                                   "ciudad": apf.get("city"), "pais": apf.get("country")}
         e.pop("_anc", None)
+    nval = sum(1 for e in emp if e.get("valorada"))
+    if nval < R.get("minimo_valoradas", 300):
+        raise SystemExit(f"Solo {nval} empresas valoradas: la descarga parece incompleta; no se sobrescriben los datos.")
+    if reutilizadas:
+        avisos.append(f"{len(reutilizadas)} empresas sin datos nuevos de Yahoo esta semana ({', '.join(reutilizadas[:12])}{'…' if len(reutilizadas) > 12 else ''}): se mantienen sus datos de la semana anterior.")
     salida = [redondear(e) for e in emp]
     json.dump(salida, open(sal / "empresas.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     json.dump(desc, open(sal / "descripciones.json", "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     p = dict(CONF["parametros"]); p.pop("tipo_sin_riesgo_inicial", None)
     p.update({"tipo_sin_riesgo": rf, "fecha_cotizacion": V.isoformat(), "fecha_valoracion": V.isoformat()})
     json.dump([p], open(sal / "parametros.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    nval = sum(1 for e in emp if e.get("valorada"))
     estado = {"actualizado": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"), "fecha_mercado": V.isoformat(),
               "fuente_lista": lista.get("fuente"), "componentes": len(emp), "valoradas": nval,
               "no_valoradas": {m: n for m, n in _contar(e.get("motivo") for e in emp if not e.get("valorada")).items()},
