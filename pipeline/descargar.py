@@ -26,13 +26,16 @@ def main():
     datos, fallos, cliente = yahoo.descargar_todo(tickers, hilos=a.hilos, extra=("^TNX", "^GSPC"))
 
     # historia de 10 años de la SEC (no imprescindible: si falla, la app conserva la de la semana anterior)
+    sec_info = None
     try:
         import sec
         h = sec.descargar([x.get("cik") for x in lista])
         with gzip.open(sal / "sec.json.gz", "wt", encoding="utf-8") as f:
             json.dump(h, f, separators=(",", ":"))
-        print(f"SEC: {len(h['empresas'])} empresas, años {h['años'][0]}-{h['años'][-1]}, {h['errores']} peticiones fallidas")
+        sec_info = {"empresas": len(h["empresas"]), "años": [h["años"][0], h["años"][-1]], "errores": h["errores"], "estados": h.get("estados"), "segundos": h.get("segundos")}
+        print("SEC:", sec_info)
     except Exception as e:
+        sec_info = {"error": str(e)[:500]}
         print("SEC no disponible:", e)
 
     # valoración revisada de las 7 Magníficas (la publica el Simulador 7M)
@@ -53,7 +56,8 @@ def main():
     sin_ts = [t for t in tickers if not datos.get(t, {}).get("ts")]
     diag = {"descargado": dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes"), "cliente": cliente,
             "segundos": round(time.time() - t0), "componentes": len(tickers), "sin_quoteSummary": sin_qs,
-            "sin_series": sin_ts, "fallos": fallos}
+            "sin_series": sin_ts, "fallos": fallos, "sec": sec_info,
+            "sin_cotizaciones": [t for t in tickers if not datos.get(t, {}).get("px")]}
     json.dump(diag, open(sal / "diagnostico.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print(f"Hecho en {diag['segundos']} s · sin quoteSummary: {len(sin_qs)} · sin series: {len(sin_ts)}")
 
