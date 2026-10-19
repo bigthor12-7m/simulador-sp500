@@ -11,8 +11,8 @@
   "convergencia_roic_pesimista": 0.25,
   "convergencia_roic_base": 0.5,
   "convergencia_roic_optimista": 0.75,
-  "tipo_sin_riesgo": 0.051,
-  "fecha_cotizacion": "2026-10-16",
+  "tipo_sin_riesgo": 0.0514,
+  "fecha_cotizacion": "2026-10-19",
   "fecha_valoracion": "2026-10-16"
  }
 ]
