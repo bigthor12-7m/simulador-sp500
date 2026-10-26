@@ -1,0 +1,26 @@
+{
+ "descargado": "2026-10-26T06:18+00:00",
+ "cliente": "yfinance",
+ "segundos": 421,
+ "componentes": 503,
+ "sin_quoteSummary": [],
+ "sin_series": [],
+ "fallos": {},
+ "sec": {
+  "empresas": 499,
+  "años": [
+   2015,
+   2025
+  ],
+  "errores": 0,
+  "estados": {
+   "user_agent": {
+    "secreto": 200
+   },
+   "200": 170,
+   "404": 6
+  },
+  "segundos": 53
+ },
+ "sin_cotizaciones": []
+}
