@@ -1,5 +1,5 @@
 {
- "actualizado": "2026-11-02T06:43+00:00",
+ "actualizado": "2026-11-09T06:45+00:00",
  "fecha_mercado": "2026-11-06",
  "fuente_lista": "Wikipedia (List of S&P 500 companies)",
  "componentes": 503,
@@ -11,18 +11,18 @@
   "Otra clase de acciones de la misma empresa: ver NWSA": 1
  },
  "sin_consenso": [
-  "ECHO",
   "L",
   "MRK",
   "MRNA",
   "NOW",
   "TPL",
+  "VST",
   "VMRK"
  ],
  "fallos_descarga": {},
  "avisos": [],
  "sp500": 7376.86,
- "eurusd": 1.1143303,
+ "eurusd": 1.1168193,
  "historia_sec": true,
  "revisadas_7m": [
   "AAPL",
@@ -35,10 +35,8 @@
  ],
  "resumen": {
   "valoradas": 499,
-  "por_debajo_central": 244,
-  "potencial_mediano": -0.0193
+  "por_debajo_central": 233,
+  "potencial_mediano": -0.0401
  },
- "alertas_activas": [],
- "actualizado_diario": "2026-11-06T22:21+00:00",
- "cotizaciones_diarias": 503
+ "alertas_activas": []
 }
