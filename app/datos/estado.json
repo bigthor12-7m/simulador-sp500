@@ -1,6 +1,6 @@
 {
  "actualizado": "2026-11-09T06:45+00:00",
- "fecha_mercado": "2026-11-10",
+ "fecha_mercado": "2026-11-11",
  "fuente_lista": "Wikipedia (List of S&P 500 companies)",
  "componentes": 503,
  "valoradas": 499,
@@ -21,8 +21,8 @@
  ],
  "fallos_descarga": {},
  "avisos": [],
- "sp500": 7520.93,
- "eurusd": 1.1165699,
+ "sp500": 7619.38,
+ "eurusd": 1.1090163,
  "historia_sec": true,
  "revisadas_7m": [
   "AAPL",
@@ -35,10 +35,10 @@
  ],
  "resumen": {
   "valoradas": 499,
-  "por_debajo_central": 219,
-  "potencial_mediano": -0.0639
+  "por_debajo_central": 212,
+  "potencial_mediano": -0.0684
  },
  "alertas_activas": [],
- "actualizado_diario": "2026-11-10T22:22+00:00",
+ "actualizado_diario": "2026-11-12T02:32+00:00",
  "cotizaciones_diarias": 503
 }
