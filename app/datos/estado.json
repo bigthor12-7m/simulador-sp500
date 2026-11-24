@@ -20,8 +20,8 @@
  ],
  "fallos_descarga": {},
  "avisos": [],
- "sp500": 7254.96,
- "eurusd": 1.0900371,
+ "sp500": 7237.17,
+ "eurusd": 1.0913457,
  "historia_sec": true,
  "revisadas_7m": [
   "AAPL",
@@ -34,8 +34,10 @@
  ],
  "resumen": {
   "valoradas": 499,
-  "por_debajo_central": 235,
-  "potencial_mediano": -0.043
+  "por_debajo_central": 238,
+  "potencial_mediano": -0.0418
  },
- "alertas_activas": []
+ "alertas_activas": [],
+ "actualizado_diario": "2026-11-24T05:32+00:00",
+ "cotizaciones_diarias": 503
 }
